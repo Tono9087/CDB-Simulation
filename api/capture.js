@@ -177,7 +177,8 @@ function generateFingerprint(data) {
     data.timezoneInfo?.timezone || '',
     data.fingerprints?.canvas || '',
     data.fingerprints?.webgl?.renderer || '',
-    Date.now().toString(),
+    // Removed Date.now() to ensure same user gets same fingerprint
+    // This allows upsert to update existing record instead of creating duplicates
   ].join('|');
 
   return crypto.createHash('sha256').update(fingerprintData).digest('hex');
