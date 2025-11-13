@@ -1,0 +1,36 @@
+{
+  "name": "ciberseguridad-del-bienestar",
+  "version": "1.0.0",
+  "description": "Educational cybersecurity project demonstrating phishing awareness - Academic Prototype",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "vercel-dev": "vercel dev"
+  },
+  "dependencies": {
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-router-dom": "^6.20.1",
+    "recharts": "^2.10.3",
+    "mongodb": "^6.3.0",
+    "bcryptjs": "^2.4.3",
+    "ua-parser-js": "^1.0.37"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.2.1",
+    "vite": "^5.0.8",
+    "tailwindcss": "^3.4.0",
+    "autoprefixer": "^10.4.16",
+    "postcss": "^8.4.32"
+  },
+  "keywords": [
+    "cybersecurity",
+    "education",
+    "phishing-awareness",
+    "academic-project"
+  ],
+  "license": "MIT",
+  "private": true
+}
