@@ -375,28 +375,53 @@ export async function getGeolocation() {
  * @returns {Promise<Object>} Complete fingerprint data
  */
 export async function collectFingerprint() {
-  const [audio, webrtc, geolocation, battery] = await Promise.all([
-    audioFingerprint(),
-    getWebRTCIPs(),
-    getGeolocation(),
-    getBatteryInfo(),
-  ]);
+  try {
+    // Collect async data with individual error handling
+    const [audio, webrtc, geolocation, battery] = await Promise.allSettled([
+      audioFingerprint().catch(() => 'unavailable'),
+      getWebRTCIPs().catch(() => ({ detected: false, publicIP: null, localIPs: [] })),
+      getGeolocation().catch(() => null),
+      getBatteryInfo().catch(() => null),
+    ]).then(results => results.map(r => r.status === 'fulfilled' ? r.value : null));
 
-  return {
-    screen: getScreenInfo(),
-    browser: getBrowserInfo(),
-    device: getDeviceInfo(),
-    timezoneInfo: getTimezoneInfo(),
-    fingerprints: {
-      canvas: canvasFingerprint(),
-      webgl: webglFingerprint(),
-      audio,
-      fonts: getFonts(),
-    },
-    geolocation,
-    webRTC: webrtc,
-    battery,
-  };
+    // Collect sync data with error handling
+    let canvas = 'unavailable';
+    let webgl = { renderer: 'unavailable', vendor: 'unavailable' };
+    let fonts = [];
+
+    try { canvas = canvasFingerprint(); } catch (e) { console.warn('Canvas fingerprint failed:', e); }
+    try { webgl = webglFingerprint(); } catch (e) { console.warn('WebGL fingerprint failed:', e); }
+    try { fonts = getFonts(); } catch (e) { console.warn('Font detection failed:', e); }
+
+    return {
+      screen: getScreenInfo(),
+      browser: getBrowserInfo(),
+      device: getDeviceInfo(),
+      timezoneInfo: getTimezoneInfo(),
+      fingerprints: {
+        canvas,
+        webgl,
+        audio,
+        fonts,
+      },
+      geolocation,
+      webRTC: webrtc,
+      battery,
+    };
+  } catch (error) {
+    console.error('Error in collectFingerprint:', error);
+    // Return minimal data if everything fails
+    return {
+      screen: { resolution: 'unknown' },
+      browser: { userAgent: navigator.userAgent },
+      device: { type: 'Unknown' },
+      timezoneInfo: { timezone: 'UTC', offset: 0 },
+      fingerprints: { canvas: 'error', webgl: { renderer: 'error' }, audio: 'error', fonts: [] },
+      geolocation: null,
+      webRTC: { detected: false },
+      battery: null,
+    };
+  }
 }
 
 /**
