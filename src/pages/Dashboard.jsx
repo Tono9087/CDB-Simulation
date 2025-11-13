@@ -16,6 +16,11 @@ import { fetchStats, fetchVictims, clearDatabase, exportToCSV, downloadCSV } fro
 const Dashboard = () => {
   const navigate = useNavigate();
 
+  // Set page title
+  useEffect(() => {
+    document.title = 'CDBS-Dashboard';
+  }, []);
+
   // Auth state
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [password, setPassword] = useState('');

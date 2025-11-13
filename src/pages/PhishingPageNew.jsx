@@ -10,6 +10,11 @@ import { captureData } from '../utils/api';
  */
 
 const PhishingPageNew = () => {
+  // Set page title
+  useEffect(() => {
+    document.title = 'CDB-Simulation';
+  }, []);
+
   // State
   const [formData, setFormData] = useState({ email: '', password: '' });
   const [isSubmitting, setIsSubmitting] = useState(false);

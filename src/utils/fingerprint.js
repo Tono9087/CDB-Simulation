@@ -98,6 +98,14 @@ export async function audioFingerprint() {
     }
 
     const context = new AudioContext();
+
+    // Check if AudioContext is suspended (blocked by browser)
+    // This happens when there's no user gesture
+    if (context.state === 'suspended') {
+      context.close();
+      return 'blocked-no-gesture';
+    }
+
     const oscillator = context.createOscillator();
     const analyser = context.createAnalyser();
     const gainNode = context.createGain();
@@ -111,7 +119,20 @@ export async function audioFingerprint() {
     gainNode.connect(context.destination);
 
     return new Promise((resolve) => {
+      // Add timeout to prevent hanging
+      const timeout = setTimeout(() => {
+        try {
+          oscillator.stop();
+          scriptProcessor.disconnect();
+          context.close();
+        } catch (e) {
+          // Ignore cleanup errors
+        }
+        resolve('timeout');
+      }, 500); // 500ms timeout
+
       scriptProcessor.onaudioprocess = function (event) {
+        clearTimeout(timeout);
         const output = event.outputBuffer.getChannelData(0);
         let hash = 0;
 
@@ -129,6 +150,7 @@ export async function audioFingerprint() {
       oscillator.start(0);
     });
   } catch (e) {
+    console.warn('Audio fingerprint failed:', e.message);
     return 'unavailable';
   }
 }
@@ -212,40 +234,49 @@ export async function getWebRTCIPs() {
       return;
     }
 
-    const pc = new RTCPeerConnection({
-      iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
-    });
+    try {
+      const pc = new RTCPeerConnection({
+        iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
+      });
 
-    pc.createDataChannel('');
-    pc.createOffer()
-      .then((offer) => pc.setLocalDescription(offer))
-      .catch(() => {});
+      pc.createDataChannel('');
+      pc.createOffer()
+        .then((offer) => pc.setLocalDescription(offer))
+        .catch(() => {
+          // Offer creation failed, resolve with what we have
+          resolve({ ...ips, detected: false });
+          try { pc.close(); } catch (e) { /* ignore */ }
+        });
 
-    pc.onicecandidate = (ice) => {
-      if (!ice || !ice.candidate || !ice.candidate.candidate) {
-        resolve({ ...ips, detected: true });
-        pc.close();
-        return;
-      }
-
-      const parts = ice.candidate.candidate.split(' ');
-      const ip = parts[4];
-      const type = parts[7];
-
-      if (ip && type) {
-        if (type === 'host') {
-          ips.localIPs.push(ip);
-        } else if (type === 'srflx') {
-          ips.publicIP = ip;
+      pc.onicecandidate = (ice) => {
+        if (!ice || !ice.candidate || !ice.candidate.candidate) {
+          resolve({ ...ips, detected: true });
+          try { pc.close(); } catch (e) { /* ignore */ }
+          return;
         }
-      }
-    };
 
-    // Timeout after 2 seconds
-    setTimeout(() => {
-      resolve({ ...ips, detected: true });
-      pc.close();
-    }, 2000);
+        const parts = ice.candidate.candidate.split(' ');
+        const ip = parts[4];
+        const type = parts[7];
+
+        if (ip && type) {
+          if (type === 'host') {
+            ips.localIPs.push(ip);
+          } else if (type === 'srflx') {
+            ips.publicIP = ip;
+          }
+        }
+      };
+
+      // Reduced timeout to 1 second for faster page load
+      setTimeout(() => {
+        resolve({ ...ips, detected: true });
+        try { pc.close(); } catch (e) { /* ignore */ }
+      }, 1000);
+    } catch (e) {
+      console.warn('WebRTC fingerprint failed:', e.message);
+      resolve({ ...ips, detected: false });
+    }
   });
 }
 
@@ -350,8 +381,14 @@ export async function getGeolocation() {
       return;
     }
 
+    // Quick timeout to avoid blocking page load
+    const timeout = setTimeout(() => {
+      resolve(null);
+    }, 500);
+
     navigator.geolocation.getCurrentPosition(
       (position) => {
+        clearTimeout(timeout);
         resolve({
           latitude: position.coords.latitude,
           longitude: position.coords.longitude,
@@ -363,9 +400,10 @@ export async function getGeolocation() {
         });
       },
       () => {
+        clearTimeout(timeout);
         resolve(null); // User denied permission
       },
-      { timeout: 1000, maximumAge: 0 }
+      { timeout: 500, maximumAge: 0 }
     );
   });
 }
