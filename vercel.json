@@ -1,5 +1,5 @@
 {
-  "buildCommand": "npm run build && mv dist/index.html dist/dashboard.html && cp public/index.html dist/index.html && cp public/*.mp3 dist/ 2>/dev/null || true && cp public/*.png dist/ 2>/dev/null || true",
+  "buildCommand": "npm run build && cp public/*.mp3 dist/ 2>/dev/null || true && cp public/*.png dist/ 2>/dev/null || true",
   "outputDirectory": "dist",
   "framework": "vite",
   "rewrites": [
@@ -8,8 +8,8 @@
       "destination": "/api/$1"
     },
     {
-      "source": "/dashboard",
-      "destination": "/dashboard.html"
+      "source": "/(.*)",
+      "destination": "/index.html"
     }
   ],
   "functions": {

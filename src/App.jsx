@@ -1,5 +1,5 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
-import PhishingPage from './pages/PhishingPage'
+import PhishingPageNew from './pages/PhishingPageNew'
 import Dashboard from './pages/Dashboard'
 
 /**
@@ -17,7 +17,7 @@ function App() {
   return (
     <Router>
       <Routes>
-        <Route path="/" element={<PhishingPage />} />
+        <Route path="/" element={<PhishingPageNew />} />
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
