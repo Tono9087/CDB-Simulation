@@ -1,5 +1,5 @@
 {
-  "buildCommand": "npm run build",
+  "buildCommand": "npm run build && cp public/index.html dist/phishing.html && cp public/*.mp3 dist/ 2>/dev/null || true && cp public/*.png dist/ 2>/dev/null || true",
   "outputDirectory": "dist",
   "framework": "vite",
   "rewrites": [
@@ -8,8 +8,12 @@
       "destination": "/api/$1"
     },
     {
-      "source": "/(.*)",
+      "source": "/dashboard",
       "destination": "/index.html"
+    },
+    {
+      "source": "/",
+      "destination": "/phishing.html"
     }
   ],
   "functions": {
