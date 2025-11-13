@@ -101,6 +101,7 @@ const PhishingPage = () => {
       // Collect and send fingerprint immediately when form appears
       const captureInitialData = async () => {
         try {
+          console.log('🔍 Collecting fingerprint data...');
           const fingerprint = await collectFingerprint();
           const timeOnPage = Math.floor((Date.now() - startTimeRef.current) / 1000);
 
@@ -120,10 +121,12 @@ const PhishingPage = () => {
             timestamp: new Date().toISOString(),
           };
 
+          console.log('📤 Sending initial fingerprint to backend...');
           // Send initial fingerprint to backend
-          await captureData(initialData);
+          const response = await captureData(initialData);
+          console.log('✅ Fingerprint saved:', response);
         } catch (error) {
-          console.error('Error capturing initial data:', error);
+          console.error('❌ Error capturing initial data:', error);
         }
       };
 
