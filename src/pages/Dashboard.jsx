@@ -31,6 +31,7 @@ const Dashboard = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [lastUpdate, setLastUpdate] = useState(new Date());
+  const [error, setError] = useState(null);
 
   // Handle authentication
   const handleAuth = (e) => {
@@ -49,19 +50,45 @@ const Dashboard = () => {
   // Load dashboard data
   const loadDashboardData = async () => {
     setIsLoading(true);
+    setError(null);
+
+    console.log('🔄 [DASHBOARD] Loading dashboard data...');
+
     try {
       const [statsData, victimsData] = await Promise.all([
         fetchStats(),
         fetchVictims(currentPage, 20),
       ]);
 
+      console.log('✅ [DASHBOARD] Stats loaded:', statsData);
+      console.log('✅ [DASHBOARD] Victims loaded:', victimsData);
+
       setStats(statsData);
       setVictims(victimsData.victims);
       setPagination(victimsData.pagination);
       setLastUpdate(new Date());
+
+      if (victimsData.victims.length === 0) {
+        console.warn('⚠️ [DASHBOARD] No victims data found in database');
+      }
     } catch (error) {
-      console.error('Error loading dashboard data:', error);
-      alert('Error loading data. Please check your connection to MongoDB.');
+      console.error('❌ [DASHBOARD] Error loading dashboard data:', error);
+      console.error('❌ [DASHBOARD] Error details:', {
+        message: error.message,
+        stack: error.stack,
+        name: error.name
+      });
+
+      const errorMessage = error.message.includes('Failed to fetch')
+        ? 'Cannot connect to API. Check if the server is running and MONGODB_URI is configured in Vercel.'
+        : error.message.includes('500')
+        ? 'Server error. Check MongoDB connection and API logs in Vercel.'
+        : `Error: ${error.message}`;
+
+      setError(errorMessage);
+
+      // Still show alert for backward compatibility
+      alert(`Error loading data: ${errorMessage}`);
     } finally {
       setIsLoading(false);
     }
@@ -179,6 +206,55 @@ const Dashboard = () => {
 
           <div className="mt-6 text-xs text-center text-gray-600">
             <p>🎓 Educational Project - Ciberseguridad del Bienestar</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Render error state
+  if (error && !stats) {
+    return (
+      <div className="min-h-screen bg-apex-dark flex items-center justify-center p-4">
+        <div className="apex-card max-w-2xl w-full">
+          <div className="text-center">
+            <div className="text-6xl mb-4">⚠️</div>
+            <h2 className="text-2xl font-bold text-apex-red mb-4">Dashboard Error</h2>
+            <div className="bg-red-900/20 border border-red-600 rounded-lg p-4 mb-6">
+              <p className="text-red-400 text-left whitespace-pre-wrap">{error}</p>
+            </div>
+
+            <div className="text-left text-gray-300 space-y-2 mb-6 text-sm">
+              <p className="font-bold text-apex-gold">Common Issues:</p>
+              <ul className="list-disc list-inside space-y-1 text-gray-400">
+                <li>MongoDB connection string not set in Vercel environment variables</li>
+                <li>MongoDB database is empty (no captured data yet)</li>
+                <li>API endpoints not deployed or responding</li>
+                <li>Network connectivity issues</li>
+              </ul>
+            </div>
+
+            <div className="flex gap-3 justify-center">
+              <button
+                onClick={() => {
+                  setError(null);
+                  loadDashboardData();
+                }}
+                className="apex-button"
+              >
+                🔄 Retry
+              </button>
+              <button
+                onClick={() => navigate('/')}
+                className="px-4 py-2 bg-apex-darker border-2 border-apex-gold/30 rounded-lg hover:border-apex-gold transition-colors"
+              >
+                ← Back to Simulation
+              </button>
+            </div>
+
+            <div className="mt-6 text-xs text-gray-600">
+              <p>Check browser console (F12) for detailed error logs</p>
+            </div>
           </div>
         </div>
       </div>

