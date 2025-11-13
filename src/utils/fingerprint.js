@@ -365,7 +365,7 @@ export async function getGeolocation() {
       () => {
         resolve(null); // User denied permission
       },
-      { timeout: 5000 }
+      { timeout: 1000, maximumAge: 0 }
     );
   });
 }
