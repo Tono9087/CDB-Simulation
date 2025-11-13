@@ -24,11 +24,8 @@ export async function connectToDatabase() {
     throw new Error('MONGODB_URI environment variable is not set');
   }
 
-  // Create new connection
-  const client = await MongoClient.connect(process.env.MONGODB_URI, {
-    useNewUrlParser: true,
-    useUnifiedTopology: true,
-  });
+  // Create new connection (deprecated options removed)
+  const client = await MongoClient.connect(process.env.MONGODB_URI);
 
   const db = client.db('apex-db');
 
