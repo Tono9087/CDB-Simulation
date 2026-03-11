@@ -1,17 +1,15 @@
 /**
  * Statistics API Endpoint
  *
- * Provides aggregated statistics for dashboard
+ * Provides aggregated statistics for the dashboard
  *
  * GET /api/stats
  */
 
-import { getVictimsCollection } from './_mongodb.js';
+import { getSupabaseClient } from './_supabase.js';
 
 /**
  * Calculate statistics from victims data
- * @param {Array} victims
- * @returns {Object}
  */
 function calculateStats(victims) {
   const stats = {
@@ -19,11 +17,7 @@ function calculateStats(victims) {
     successRate: 0,
     averageTime: 0,
     uniqueLocations: 0,
-    deviceBreakdown: {
-      mobile: 0,
-      desktop: 0,
-      tablet: 0,
-    },
+    deviceBreakdown: { mobile: 0, desktop: 0, tablet: 0 },
     topCountries: [],
     topCities: [],
     topBrowsers: [],
@@ -33,15 +27,13 @@ function calculateStats(victims) {
     recentVictims: [],
   };
 
-  if (victims.length === 0) {
-    return stats;
-  }
+  if (victims.length === 0) return stats;
 
-  // Calculate success rate (users who submitted forms)
+  // Success rate (users who submitted forms)
   const submitted = victims.filter((v) => v.metadata?.userSubmitted).length;
   stats.successRate = ((submitted / victims.length) * 100).toFixed(1);
 
-  // Calculate average time on page
+  // Average time on page
   const times = victims
     .filter((v) => v.behavior?.timeOnPage)
     .map((v) => v.behavior.timeOnPage);
@@ -49,7 +41,7 @@ function calculateStats(victims) {
     stats.averageTime = Math.round(times.reduce((a, b) => a + b, 0) / times.length);
   }
 
-  // Count unique locations
+  // Unique locations
   const locations = new Set(
     victims
       .filter((v) => v.network?.city && v.network?.country)
@@ -111,22 +103,19 @@ function calculateStats(victims) {
   // Hourly data (last 24 hours)
   const now = new Date();
   const hourlyMap = {};
-
   for (let i = 23; i >= 0; i--) {
     const hourDate = new Date(now - i * 60 * 60 * 1000);
-    const hourKey = hourDate.toISOString().slice(0, 13); // YYYY-MM-DDTHH
+    const hourKey = hourDate.toISOString().slice(0, 13);
     hourlyMap[hourKey] = 0;
   }
-
   victims.forEach((v) => {
     if (v.timestamp) {
       const hourKey = new Date(v.timestamp).toISOString().slice(0, 13);
-      if (hourlyMap.hasOwnProperty(hourKey)) {
+      if (Object.prototype.hasOwnProperty.call(hourlyMap, hourKey)) {
         hourlyMap[hourKey]++;
       }
     }
   });
-
   stats.hourlyData = Object.entries(hourlyMap).map(([hour, count]) => ({
     hour: new Date(hour).toLocaleString('en-US', { hour: 'numeric', hour12: true }),
     count,
@@ -156,22 +145,21 @@ function calculateStats(victims) {
  * Main handler
  */
 export default async function handler(req, res) {
-  // Only allow GET
   if (req.method !== 'GET') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
   try {
-    const collection = await getVictimsCollection();
+    const supabase = getSupabaseClient();
 
-    // Fetch all victims (for stats calculation)
-    // In production, consider using MongoDB aggregation pipelines for better performance
-    const victims = await collection.find({}).toArray();
+    const { data: victims, error } = await supabase
+      .from('victims')
+      .select('*');
 
-    // Calculate stats
-    const stats = calculateStats(victims);
+    if (error) throw error;
 
-    // Return stats
+    const stats = calculateStats(victims || []);
+
     return res.status(200).json(stats);
   } catch (error) {
     console.error('Stats error:', error);

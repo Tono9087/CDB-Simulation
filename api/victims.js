@@ -6,60 +6,51 @@
  * GET /api/victims?page=1&limit=20&sort=-timestamp
  */
 
-import { getVictimsCollection } from './_mongodb.js';
+import { getSupabaseClient } from './_supabase.js';
 
 /**
- * Parse sort parameter
- * @param {string} sortParam
- * @returns {Object}
+ * Parse sort parameter (e.g. "-timestamp" → column + ascending: false)
  */
 function parseSortParam(sortParam) {
-  if (!sortParam) return { timestamp: -1 };
+  if (!sortParam) return { column: 'timestamp', ascending: false };
 
-  const direction = sortParam.startsWith('-') ? -1 : 1;
-  const field = sortParam.replace(/^-/, '');
+  const ascending = !sortParam.startsWith('-');
+  const column = sortParam.replace(/^-/, '');
 
-  return { [field]: direction };
+  return { column, ascending };
 }
 
 /**
  * Main handler
  */
 export default async function handler(req, res) {
-  // Only allow GET
   if (req.method !== 'GET') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
   try {
-    const collection = await getVictimsCollection();
+    const supabase = getSupabaseClient();
 
-    // Parse query parameters
     const page = parseInt(req.query.page) || 1;
-    const limit = Math.min(parseInt(req.query.limit) || 20, 100); // Max 100 per page
-    const sort = parseSortParam(req.query.sort);
-    const skip = (page - 1) * limit;
+    const limit = Math.min(parseInt(req.query.limit) || 20, 100);
+    const { column, ascending } = parseSortParam(req.query.sort);
+    const from = (page - 1) * limit;
+    const to = from + limit - 1;
 
-    // Get total count
-    const totalRecords = await collection.countDocuments();
+    // Fetch page + total count in one request
+    const { data: victims, error, count } = await supabase
+      .from('victims')
+      .select('*', { count: 'exact' })
+      .order(column, { ascending })
+      .range(from, to);
 
-    // Fetch victims with pagination
-    const victims = await collection
-      .find({})
-      .sort(sort)
-      .skip(skip)
-      .limit(limit)
-      .toArray();
+    if (error) throw error;
 
-    // Return full victim objects (keep original structure for frontend)
-    // The frontend VictimTable expects the full nested structure
-    const formattedVictims = victims;
-
-    // Calculate pagination info
+    const totalRecords = count ?? 0;
     const totalPages = Math.ceil(totalRecords / limit);
 
     return res.status(200).json({
-      victims: formattedVictims,
+      victims: victims || [],
       pagination: {
         currentPage: page,
         totalPages,

